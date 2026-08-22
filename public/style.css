@@ -146,6 +146,9 @@ body.my-turn .table::after {
   padding: 6px 12px; font-size: clamp(0.9rem, 3.4vw, 1.1rem);
   flex: 0 0 auto;
 }
+.table.squat .hud { padding: 3px 10px; font-size: 0.82rem; }
+.table.squat .top-row { padding: 0; }
+.table.squat .banner-row { padding: 0 6px; }
 .score { white-space: nowrap; font-weight: 800; }
 .team-a { color: #ffe08a; }
 .team-b { color: #a9d6ff; }
@@ -191,6 +194,15 @@ body.my-turn .table::after {
   position: relative;
   width: clamp(50px, 14vw, 66px); height: clamp(50px, 14vw, 66px);
 }
+/* Landscape phones are short on height, not width. The top/self avatars are
+   only identity markers - shrinking them (not the hand or table cards, which
+   is what you actually play with) is what buys the extra vertical room. */
+.table.squat .top-row .avatar-wrap,
+.table.squat .banner-row .avatar-wrap {
+  width: clamp(34px, 7vh, 46px); height: clamp(34px, 7vh, 46px);
+}
+.table.squat .top-row .pname,
+.table.squat .banner-row .pname { font-size: 0.75rem; margin-top: 0; }
 .seat .avatar {
   position: absolute; inset: 0;
   border-radius: 50%;
@@ -206,7 +218,9 @@ body.my-turn .table::after {
 .seat.av2 .avatar { background: #4a3b7a; border-color: #c3b1f5; }
 .seat.av3 .avatar { background: #1d6f52; border-color: #86e5b6; }
 
-.seat.active .avatar { border-color: var(--gold); }
+/* Whoever's turn it is gets the same unmistakable gold glow, self or not -
+   the ring alone was too subtle to notice for other players. */
+.seat.active .avatar { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(255,183,3,0.45), 0 0 18px rgba(255,183,3,0.8); }
 .seat.active .avatar-wrap { animation: avatarPulse 1.2s ease-in-out infinite; }
 @keyframes avatarPulse {
   0%, 100% { transform: scale(1); }
@@ -232,10 +246,11 @@ body.my-turn .table::after {
 }
 .timer-ring.on { opacity: 1; }
 .timer-ring .tr-track {
-  fill: none; stroke: rgba(0,0,0,0.45); stroke-width: 11;
+  fill: none; stroke: rgba(0,0,0,0.5); stroke-width: 14;
 }
 .timer-ring .tr-arc {
-  fill: none; stroke: #3ddc84; stroke-width: 11; stroke-linecap: round;
+  fill: none; stroke: #3ddc84; stroke-width: 14; stroke-linecap: round;
+  filter: drop-shadow(0 0 3px rgba(0,0,0,0.6));
 }
 .timer-ring.urgent { animation: ringPulse 0.7s ease-in-out infinite; }
 @keyframes ringPulse {

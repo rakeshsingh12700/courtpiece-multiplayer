@@ -355,6 +355,11 @@
     const vw = (table && table.clientWidth) || window.innerWidth || 375;
     const vh = (table && table.clientHeight) || window.innerHeight || 667;
     const squat = vh <= 520;
+    // The squat class shrinks the hud/top-row/self-avatar chrome in CSS - it
+    // has to land BEFORE we measure them below, or this pass reads their
+    // taller portrait-mode heights and hand/trick cards come out smaller
+    // than the space actually available.
+    if (table) table.classList.toggle("squat", squat);
     const W = Math.max(180, vw - 16); // usable hand width
 
     const hudH = measuredH("hudBar", 34);
@@ -364,9 +369,9 @@
     // Reserve enough of the middle that the played cards stay big enough to
     // read from across the room - seeing who played what matters as much as
     // seeing your own hand.
-    const minMiddle = squat ? Math.max(118, vh * 0.32) : 168;
+    const minMiddle = squat ? Math.max(145, vh * 0.40) : 168;
     let avail = vh - hudH - topH - banH - minMiddle - BOTTOM_PAD;
-    avail = Math.min(avail, vh * (squat ? 0.40 : 0.43));
+    avail = Math.min(avail, vh * (squat ? 0.44 : 0.43));
     avail = Math.max(avail, 56);
 
     function option(rows) {
@@ -420,7 +425,6 @@
     const idx = Math.max(11, Math.min(best.cardW * 0.27, (best.strip - 4) * 0.62));
 
     if (table) {
-      table.classList.toggle("squat", squat);
       table.style.setProperty("--card-w", best.cardW.toFixed(1) + "px");
       table.style.setProperty("--card-strip", best.strip.toFixed(1) + "px");
       table.style.setProperty("--hand-idx", idx.toFixed(1) + "px");
