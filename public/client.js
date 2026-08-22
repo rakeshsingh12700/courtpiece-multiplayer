@@ -51,6 +51,37 @@
     note(1320, 0.12, 0.3, 0.18);
   }
 
+  // A short percussive "tap" - a card landing on the table, not a tone. Built
+  // from filtered noise rather than an oscillator so it reads as a physical
+  // hit instead of a beep.
+  function playCardLandSound() {
+    const ctx = ensureAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    const dur = 0.09;
+    const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * dur));
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(1800, now);
+    filter.Q.value = 0.9;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + dur + 0.02);
+  }
+
   // One distinct character per SEAT INDEX, so every phone shows the same
   // animal for the same person. Players who cannot read still know who is who.
   const SEAT_AVATARS = ["🐯", "🦊", "🐼", "🦁"];
@@ -296,6 +327,9 @@
   });
 
   let lastState = null;
+  let lastTrickSeats = []; // which seats' cards are already on the table, so a
+                            // re-render for an unrelated reason (resize, the
+                            // timer tick) doesn't replay the fly-in animation.
 
   function seatPosKey(seat) {
     if (!lastState || typeof lastState.yourSeat !== "number") return "bottom";
@@ -370,15 +404,18 @@
     const W = Math.max(180, vw - 16); // usable hand width
 
     const hudH = measuredH("hudBar", 34);
-    const topH = measuredH("topRow", 78);
-    const banH = measuredH("bannerRow", 58);
+    // In squat/landscape mode the top and self avatar rows float as absolute
+    // badges over the felt (see .table.squat rules) instead of taking their
+    // own flex row, specifically so the hand and trick area can have that
+    // height back - so they cost 0 here, not their own box height.
+    const topH = squat ? 0 : measuredH("topRow", 78);
+    const banH = squat ? 0 : measuredH("bannerRow", 58);
 
-    // Reserve enough of the middle that the played cards stay big enough to
-    // read from across the room - seeing who played what matters as much as
-    // seeing your own hand.
-    const minMiddle = squat ? Math.max(145, vh * 0.40) : 168;
-    let avail = vh - hudH - topH - banH - minMiddle - BOTTOM_PAD;
-    avail = Math.min(avail, vh * (squat ? 0.44 : 0.43));
+    // Split whatever is left after the hud between the hand and the trick
+    // area, roughly evenly, so both grow together as the viewport allows
+    // rather than one starving the other via a fixed floor.
+    const remaining = Math.max(90, vh - hudH - topH - banH - BOTTOM_PAD);
+    let avail = remaining * (squat ? 0.46 : 0.42);
     avail = Math.max(avail, 56);
 
     function option(rows) {
@@ -739,10 +776,22 @@
       const trick = state.currentTrick && state.currentTrick.length
         ? state.currentTrick
         : (state.lastTrick && state.lastTrick.cards) || [];
+
+      const trickSeats = trick.map((e) => e && e.seat);
+      // Fewer cards than last time means a new trick began (the table was
+      // just cleared) - nothing on it now has already been animated.
+      if (trickSeats.length < lastTrickSeats.length) lastTrickSeats = [];
+      let anyNew = false;
+
       trick.forEach((entry) => {
         if (!entry || !entry.card) return;
-        trickArea.appendChild(cardTile(entry.card, "tcard pos-" + (posOf[entry.seat] || "bottom")));
+        const pos = posOf[entry.seat] || "bottom";
+        const isNew = !lastTrickSeats.includes(entry.seat);
+        if (isNew) anyNew = true;
+        trickArea.appendChild(cardTile(entry.card, "tcard pos-" + pos + (isNew ? " fly-" + pos : "")));
       });
+      lastTrickSeats = trickSeats;
+      if (anyNew) playCardLandSound();
     }
 
     // Whose turn it is reads off the pulsing avatar + countdown ring alone -
@@ -799,6 +848,21 @@
         handArea.appendChild(row);
       }
       ensureHandFits();
+    }
+
+    if (location.search.includes("measure=1")) {
+      const t = byId("tableEl");
+      const cs = t && getComputedStyle(t);
+      const tileEl = document.querySelector(".hand .card-tile .card");
+      const tcardEl = document.querySelector(".tcard .card");
+      document.title = JSON.stringify({
+        vw: window.innerWidth, vh: window.innerHeight,
+        cardW: cs && cs.getPropertyValue("--card-w"),
+        tcardW: cs && cs.getPropertyValue("--tcard-w"),
+        tileRectW: tileEl && Math.round(tileEl.getBoundingClientRect().width),
+        tcardRectW: tcardEl && Math.round(tcardEl.getBoundingClientRect().width),
+        squat: t && t.classList.contains("squat"),
+      });
     }
 
     // ----- trump overlay -----

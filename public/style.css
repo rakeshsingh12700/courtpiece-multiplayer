@@ -158,8 +158,6 @@ body.my-turn .table::after {
   flex: 0 0 auto;
 }
 .table.squat .hud { padding: 3px 10px; font-size: 0.82rem; }
-.table.squat .top-row { padding: 0; }
-.table.squat .banner-row { padding: 0 6px; }
 .score { white-space: nowrap; font-weight: 800; }
 .team-a { color: #ffe08a; }
 .team-b { color: #a9d6ff; }
@@ -205,15 +203,28 @@ body.my-turn .table::after {
   position: relative;
   width: clamp(50px, 14vw, 66px); height: clamp(50px, 14vw, 66px);
 }
-/* Landscape phones are short on height, not width. The top/self avatars are
-   only identity markers - shrinking them (not the hand or table cards, which
-   is what you actually play with) is what buys the extra vertical room. */
+/* Landscape phones are short on height, not width - and reserving a whole
+   flex row's worth of height just for the top/self avatar was most of what
+   was starving the hand and trick cards. In squat mode they become small
+   floating badges layered over the felt instead, out of the flex flow
+   entirely, so the middle row can claim that height back. Their character
+   icon alone (no name text) is enough to identify them - that's the same
+   reasoning the icon system itself was built on. */
+.table.squat .top-row {
+  position: absolute; top: max(28px, env(safe-area-inset-top) + 2px);
+  left: 50%; transform: translateX(-50%);
+  padding: 0; z-index: 6; pointer-events: none;
+}
+.table.squat .banner-row {
+  position: absolute; left: 6px; bottom: 2px;
+  padding: 0; z-index: 6; width: auto; pointer-events: none;
+}
 .table.squat .top-row .avatar-wrap,
 .table.squat .banner-row .avatar-wrap {
-  width: clamp(34px, 7vh, 46px); height: clamp(34px, 7vh, 46px);
+  width: 30px; height: 30px;
 }
 .table.squat .top-row .pname,
-.table.squat .banner-row .pname { font-size: 0.75rem; margin-top: 0; }
+.table.squat .banner-row .pname { display: none; }
 .seat .avatar {
   position: absolute; inset: 0;
   border-radius: 50%;
@@ -318,6 +329,38 @@ body.dragging-card .drop-zone span { opacity: 0.9; color: var(--gold); }
 .trick-area .tcard.pos-top    { transform: translate(-50%, -50%) translate(0, -45%); z-index: 1; }
 .trick-area .tcard.pos-left   { transform: translate(-50%, -50%) translate(-74%, 0) rotate(-90deg); z-index: 2; }
 .trick-area .tcard.pos-right  { transform: translate(-50%, -50%) translate(74%, 0) rotate(90deg); z-index: 3; }
+
+/* A card landing in the middle should look thrown there from its player's
+   seat, not conjured. Each keyframe's "to" state exactly matches that seat's
+   resting transform above, so the animation hands off to the static rule
+   with no visible jump when it finishes. Only newly-played cards get the
+   fly-in class (added in client.js) - cards already on the table when a
+   render happens for an unrelated reason (resize, a timer tick) render
+   straight into their resting position, not mid-flight again. */
+@keyframes flyInBottom {
+  0%   { transform: translate(-50%, -50%) translate(0, 150%) scale(0.8); opacity: 0.4; }
+  70%  { transform: translate(-50%, -50%) translate(0, 38%) scale(1.05); opacity: 1; }
+  100% { transform: translate(-50%, -50%) translate(0, 45%) scale(1); opacity: 1; }
+}
+@keyframes flyInTop {
+  0%   { transform: translate(-50%, -50%) translate(0, -150%) scale(0.8); opacity: 0.4; }
+  70%  { transform: translate(-50%, -50%) translate(0, -38%) scale(1.05); opacity: 1; }
+  100% { transform: translate(-50%, -50%) translate(0, -45%) scale(1); opacity: 1; }
+}
+@keyframes flyInLeft {
+  0%   { transform: translate(-50%, -50%) translate(-190%, 0) rotate(-90deg) scale(0.8); opacity: 0.4; }
+  70%  { transform: translate(-50%, -50%) translate(-66%, 0) rotate(-90deg) scale(1.05); opacity: 1; }
+  100% { transform: translate(-50%, -50%) translate(-74%, 0) rotate(-90deg) scale(1); opacity: 1; }
+}
+@keyframes flyInRight {
+  0%   { transform: translate(-50%, -50%) translate(190%, 0) rotate(90deg) scale(0.8); opacity: 0.4; }
+  70%  { transform: translate(-50%, -50%) translate(66%, 0) rotate(90deg) scale(1.05); opacity: 1; }
+  100% { transform: translate(-50%, -50%) translate(74%, 0) rotate(90deg) scale(1); opacity: 1; }
+}
+.tcard.fly-bottom { animation: flyInBottom 0.34s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.tcard.fly-top    { animation: flyInTop    0.34s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.tcard.fly-left   { animation: flyInLeft   0.34s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.tcard.fly-right  { animation: flyInRight  0.34s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 
 /* ---------- Turn banner ---------- */
 /* Just the "you" avatar and its countdown ring now - the text banner is gone,
