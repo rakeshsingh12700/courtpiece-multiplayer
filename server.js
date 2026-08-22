@@ -18,6 +18,9 @@ app.use(
   })
 );
 
+// Hosting platforms ping this to know the instance is up.
+app.get("/healthz", (req, res) => res.json({ ok: true, rooms: rooms.size }));
+
 const rooms = new Map(); // code -> Room
 const playerRooms = new Map(); // playerId -> code
 
@@ -32,7 +35,8 @@ function randomCode() {
 
 // A turn auto-plays after this long, so one person putting their phone down
 // (or dropping off the wifi) never stalls the whole table.
-const TURN_SECONDS = 25;
+const TURN_SECONDS = 20;
+const BOT_NAMES = ["Bot Tiger", "Bot Fox", "Bot Panda", "Bot Lion", "Bot Falcon", "Bot Otter"];
 
 function broadcastState(room) {
   for (let seat = 0; seat < 4; seat++) {
@@ -52,12 +56,24 @@ function clearTurnTimer(room) {
   room.turnDeadline = null;
 }
 
+// A bot "thinks" briefly instead of waiting out the full human turn clock -
+// fast enough to test a game solo, slow enough to see what it did.
+const BOT_MIN_MS = 700;
+const BOT_MAX_MS = 1600;
+
+function seatOnTheSpot(room) {
+  return room.phase === "trumpSelect" ? room.trumpCallerSeat : room.turnSeat;
+}
+
 // Restart the clock for whoever is now on the spot, then push state.
 function armTurn(room) {
   clearTurnTimer(room);
   if (room.phase === "playing" || room.phase === "trumpSelect") {
-    room.turnDeadline = Date.now() + TURN_SECONDS * 1000;
-    room._turnTimer = setTimeout(() => autoPlayTurn(room), TURN_SECONDS * 1000);
+    const seat = seatOnTheSpot(room);
+    const isBot = !!(room.players[seat] && room.players[seat].isBot);
+    const delayMs = isBot ? BOT_MIN_MS + Math.random() * (BOT_MAX_MS - BOT_MIN_MS) : TURN_SECONDS * 1000;
+    room.turnDeadline = Date.now() + delayMs;
+    room._turnTimer = setTimeout(() => autoPlayTurn(room), delayMs);
   }
   broadcastState(room);
 }
@@ -122,6 +138,13 @@ io.on("connection", (socket) => {
     const room = rooms.get((code || "").toUpperCase());
     if (!room) return cb && cb({ ok: false, error: "Room not found" });
     joinRoomInternal(socket, room, playerId, name, cb);
+  });
+
+  socket.on("addBot", ({ playerId }) => {
+    const room = roomOfPlayer(playerId);
+    if (!room || room.phase !== "lobby") return;
+    const seat = room.addBot(BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)]);
+    if (seat !== -1) broadcastState(room);
   });
 
   socket.on("chooseTrump", ({ playerId, suit }) => {

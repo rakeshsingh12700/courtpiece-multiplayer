@@ -3,7 +3,10 @@
   const SUIT_NAME = { S: "Spades", H: "Hearts", D: "Diamonds", C: "Clubs" };
   const RED_SUITS = { H: true, D: true };
   // Bridge-size deck (RevK, CC0) drawn with large top-only indices.
-  const CARD_VIEWBOX = "-106 -164.5 212 329";
+  // The deck's own viewBox is centre-origin; each <symbol> carries that, so the
+  // outer <svg> just needs a plain 212x329 viewport for the symbol to map into.
+  // (Reusing the centre-origin box here puts the artwork half a card off.)
+  const CARD_VIEWBOX = "0 0 212 329";
   const ASPECT = 329 / 212; // card height / card width
 
   // One distinct character per SEAT INDEX, so every phone shows the same
@@ -203,6 +206,15 @@
     socket.emit("startGame", { playerId });
   });
 
+  const fillBotsBtn = byId("fillBotsBtn");
+  if (fillBotsBtn) {
+    fillBotsBtn.addEventListener("click", () => {
+      // One bot per click server-side; fire up to 3 - the server ignores any
+      // that land after the room is already full.
+      for (let i = 0; i < 3; i++) socket.emit("addBot", { playerId });
+    });
+  }
+
   // Opening a shared invite link drops you straight into the room - no code to
   // type, no name to pick.
   const urlParams = new URLSearchParams(location.search);
@@ -349,11 +361,12 @@
     const topH = measuredH("topRow", 78);
     const banH = measuredH("bannerRow", 58);
 
-    const minMiddle = squat ? 92 : 116;
+    // Reserve enough of the middle that the played cards stay big enough to
+    // read from across the room - seeing who played what matters as much as
+    // seeing your own hand.
+    const minMiddle = squat ? Math.max(118, vh * 0.32) : 168;
     let avail = vh - hudH - topH - banH - minMiddle - BOTTOM_PAD;
-    // Landscape is where cards get cramped, so give the hand a bigger share of
-    // a short viewport now that the text banner no longer takes a slice.
-    avail = Math.min(avail, vh * (squat ? 0.46 : 0.46));
+    avail = Math.min(avail, vh * (squat ? 0.40 : 0.43));
     avail = Math.max(avail, 56);
 
     function option(rows) {
@@ -393,14 +406,13 @@
     const seatEl = byId("seat-left");
     const seatW = (seatEl && seatEl.offsetWidth) || 76;
     const midW = Math.max(110, vw - 2 * seatW - 14);
-    // Cross extents with the side cards rotated 90deg. Upright cards reach
-    // 0.57H either side of centre plus half a card, so the cross is ~2.14 card
-    // heights tall; the sideways cards reach 0.83W plus half a card HEIGHT
-    // each side, so it is ~3.1 card widths across.
-    const crossV = 2.14;
-    const crossH = 3.1;
-    let tW = (middleH - 8) / crossV / ASPECT;
-    tW = Math.min(tW, midW / crossH, 132);
+    // The four played cards sit in a tight overlapping cross, the way they land
+    // on a real table. Keeping it compact is what lets each card be BIG: the
+    // cross spans ~1.8 card heights vertically and ~2.85 card widths across.
+    const crossV = 1.9;
+    const crossH = 3.03;
+    let tW = (middleH - 6) / crossV / ASPECT;
+    tW = Math.min(tW, midW / crossH, 168);
     tW = Math.max(tW, 30);
 
     // Large-print corner index: sized off the card, but never wider than the
@@ -608,10 +620,19 @@
         label.textContent = "Seat " + (i + 1);
         who.appendChild(av);
         who.appendChild(label);
-        const right = document.createElement("span");
-        right.textContent = p ? p.name : "empty";
-        row.appendChild(who);
-        row.appendChild(right);
+        if (p) {
+          const right = document.createElement("span");
+          right.textContent = p.name + (p.isBot ? " 🤖" : "");
+          row.appendChild(who);
+          row.appendChild(right);
+        } else {
+          row.appendChild(who);
+          const botBtn = document.createElement("button");
+          botBtn.className = "bot-add-btn";
+          botBtn.textContent = "+ Add Bot";
+          botBtn.addEventListener("click", () => socket.emit("addBot", { playerId }));
+          row.appendChild(botBtn);
+        }
         list.appendChild(row);
       });
     }

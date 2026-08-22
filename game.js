@@ -75,6 +75,17 @@ class Room {
     return seat;
   }
 
+  // Fills one empty seat with a bot so the table can be tested, or a real
+  // game can start, without all 4 humans present. A bot is just a player
+  // with no socket - the server's own auto-play timer moves for it.
+  addBot(name) {
+    const seat = this.players.findIndex((p) => p === null);
+    if (seat === -1) return -1;
+    const id = "bot_" + seat + "_" + Math.random().toString(36).slice(2, 8);
+    this.players[seat] = { id, name, connected: true, isBot: true };
+    return seat;
+  }
+
   removeBySocketDisconnect(id) {
     const seat = this.players.findIndex((p) => p && p.id === id);
     if (seat !== -1) this.players[seat].connected = false;

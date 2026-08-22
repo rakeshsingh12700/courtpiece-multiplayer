@@ -96,6 +96,13 @@ html, body {
 .seat-list .row.filled { background: rgba(255,183,3,0.22); }
 .seat-list .row .who { display: flex; align-items: center; gap: 10px; }
 .seat-list .row .av { font-size: 1.9rem; line-height: 1; }
+.bot-add-btn {
+  padding: 8px 14px; border-radius: 8px; border: 1.5px dashed rgba(255,255,255,0.4);
+  background: transparent; color: #fff; opacity: 0.85;
+  font-size: clamp(0.85rem, 3.4vw, 0.98rem); font-weight: 700; cursor: pointer;
+}
+.bot-add-btn:active { background: rgba(255,255,255,0.12); opacity: 1; }
+#fillBotsBtn { margin-top: 10px; margin-bottom: 4px; }
 
 /* ---------- Game table ---------- */
 .table {
@@ -278,10 +285,13 @@ body.dragging-card .drop-zone span { opacity: 0.9; color: var(--gold); }
   width: var(--tcard-w);
   --idx: calc(var(--tcard-w) * 0.34);
 }
-.trick-area .tcard.pos-bottom { transform: translate(-50%, -50%) translate(0, 57%); z-index: 4; }
-.trick-area .tcard.pos-top    { transform: translate(-50%, -50%) translate(0, -57%); z-index: 1; }
-.trick-area .tcard.pos-left   { transform: translate(-50%, -50%) translate(-83%, 0) rotate(90deg); z-index: 2; }
-.trick-area .tcard.pos-right  { transform: translate(-50%, -50%) translate(83%, 0) rotate(-90deg); z-index: 3; }
+/* Each card turns so its printed index ends up on the OUTER edge, away from
+   the pile in the middle - that way every player's rank stays readable even
+   though the cards overlap. */
+.trick-area .tcard.pos-bottom { transform: translate(-50%, -50%) translate(0, 45%); z-index: 4; }
+.trick-area .tcard.pos-top    { transform: translate(-50%, -50%) translate(0, -45%); z-index: 1; }
+.trick-area .tcard.pos-left   { transform: translate(-50%, -50%) translate(-74%, 0) rotate(-90deg); z-index: 2; }
+.trick-area .tcard.pos-right  { transform: translate(-50%, -50%) translate(74%, 0) rotate(90deg); z-index: 3; }
 
 /* ---------- Turn banner ---------- */
 /* Just the "you" avatar and its countdown ring now - the text banner is gone,
