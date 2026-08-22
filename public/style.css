@@ -597,7 +597,7 @@ body.dragging-card .drop-zone span { opacity: 0.9; color: var(--gold); }
 .overlay-card.win { background: linear-gradient(160deg, #1d6f3f, #0f4426); border-color: rgba(120,255,160,0.4); }
 .overlay-card.loss { background: linear-gradient(160deg, #7a2222, #4a1414); border-color: rgba(255,120,120,0.4); }
 .overlay-card.win #roundEndTitle, .overlay-card.loss #roundEndTitle {
-  font-size: clamp(1.15rem, 4.6vw, 1.4rem); font-weight: 800;
+  font-size: clamp(1.15rem, 4.6vw, 1.4rem); font-weight: 800; margin-bottom: 20px;
 }
 
 /* A court (the caller's team sweeping the opponents 7-0) is a big enough
@@ -637,7 +637,6 @@ body.dragging-card .drop-zone span { opacity: 0.9; color: var(--gold); }
   box-shadow: 0 0 12px rgba(255,183,3,0.55), 0 2px 6px rgba(0,0,0,0.6);
 }
 
-#roundEndDetail { opacity: 0.95; margin-bottom: 16px; line-height: 1.5; font-size: clamp(1rem, 4vw, 1.15rem); }
 
 /* ---------- Short screens (landscape phones) ---------- */
 @media (max-height: 520px) {

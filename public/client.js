@@ -949,15 +949,6 @@
         card.classList.toggle("loss", !!r.winningTeam && !won);
       }
       setText("roundEndTitle", r.winningTeam ? (won ? "Your team won" : "Your team lost") : "Round tied");
-      const rt = r.tricksWon || { A: 0, B: 0 };
-      const nextNote = r.callerSucceeded
-        ? (r.isCourt ? "Trump passes to the caller's partner next round." : "The same player calls trump again next round.")
-        : "Trump passes to the next player.";
-      setText(
-        "roundEndDetail",
-        `Tricks — Us: ${myTeam === "A" ? rt.A : rt.B}, Them: ${myTeam === "A" ? rt.B : rt.A}. ` +
-          `Trump caller ${r.callerSucceeded ? "made" : "failed"} the bid. ${nextNote}`
-      );
     } else if (roundEndOverlay) {
       roundEndOverlay.classList.add("hidden");
     }
