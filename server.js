@@ -32,7 +32,7 @@ function randomCode() {
 
 // A turn auto-plays after this long, so one person putting their phone down
 // (or dropping off the wifi) never stalls the whole table.
-const TURN_SECONDS = 30;
+const TURN_SECONDS = 25;
 
 function broadcastState(room) {
   for (let seat = 0; seat < 4; seat++) {

@@ -113,6 +113,18 @@ body.my-turn .table::after {
   background: rgba(255,255,255,0.18); padding: 5px 12px; border-radius: 20px; font-weight: 800;
   font-size: clamp(0.9rem, 3.6vw, 1.1rem); white-space: nowrap;
 }
+/* With a trump called, the chip goes white so the suit pip can show its real
+   colour - a red heart has to actually look red. */
+.trumpBadge.has-trump {
+  background: #fff; color: #111;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.trumpBadge .tb-label { color: #444; font-weight: 700; font-size: 0.85em; }
+.trumpBadge .tb-pip { font-size: 1.5em; line-height: 1; font-weight: 900; }
+.trumpBadge .tb-pip.red { color: #d40000; }
+.trumpBadge .tb-pip.black { color: #000; }
 .roomBadge { opacity: 0.7; font-size: 0.8em; white-space: nowrap; }
 
 .top-row {
@@ -241,10 +253,12 @@ body.dragging-card .drop-zone span { opacity: 0.9; color: var(--gold); }
 .table.squat .trick-area .tcard.pos-right  { transform: translate(-50%, -50%) translate(88%, 0); }
 
 /* ---------- Turn banner ---------- */
+/* Just the "you" avatar and its countdown ring now - the text banner is gone,
+   so this row stays as short as possible. */
 .banner-row {
   flex: 0 0 auto;
   display: flex; align-items: center; gap: 8px;
-  padding: 2px 8px 3px;
+  padding: 0 8px 2px;
 }
 .seat-bottom { flex: 0 0 auto; }
 .seat-bottom .avatar-wrap { width: clamp(44px, 12vw, 58px); height: clamp(44px, 12vw, 58px); }

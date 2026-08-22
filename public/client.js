@@ -286,7 +286,9 @@
 
     const minMiddle = squat ? 92 : 116;
     let avail = vh - hudH - topH - banH - minMiddle - BOTTOM_PAD;
-    avail = Math.min(avail, vh * (squat ? 0.37 : 0.46));
+    // Landscape is where cards get cramped, so give the hand a bigger share of
+    // a short viewport now that the text banner no longer takes a slice.
+    avail = Math.min(avail, vh * (squat ? 0.46 : 0.46));
     avail = Math.max(avail, 56);
 
     function option(rows) {
@@ -579,10 +581,26 @@
     setText("scoreA", (myTeam === "A" ? "Us " : "Them ") + tricks.A);
     setText("scoreB", (myTeam === "B" ? "Us " : "Them ") + tricks.B);
 
-    setText(
-      "trumpBadge",
-      state.trumpSuit ? `Trump ${SUIT_SYMBOL[state.trumpSuit]} ${SUIT_NAME[state.trumpSuit]}` : "Trump: choosing…"
-    );
+    // Trump suit is drawn in its true colour (red hearts/diamonds, black
+    // spades/clubs) on a white chip, so the suit reads without reading words.
+    const trumpBadge = byId("trumpBadge");
+    if (trumpBadge) {
+      trumpBadge.innerHTML = "";
+      if (state.trumpSuit) {
+        trumpBadge.classList.add("has-trump");
+        const label = document.createElement("span");
+        label.className = "tb-label";
+        label.textContent = "Trump";
+        const pip = document.createElement("span");
+        pip.className = "tb-pip" + (RED_SUITS[state.trumpSuit] ? " red" : " black");
+        pip.textContent = SUIT_SYMBOL[state.trumpSuit] || "";
+        trumpBadge.appendChild(label);
+        trumpBadge.appendChild(pip);
+      } else {
+        trumpBadge.classList.remove("has-trump");
+        trumpBadge.textContent = "Trump: choosing…";
+      }
+    }
 
     // ----- trick area (keep the drop-zone element, replace only the cards) -----
     const trickArea = byId("trickArea");
@@ -602,40 +620,9 @@
       });
     }
 
-    // ----- turn banner -----
+    // Whose turn it is reads off the pulsing avatar + countdown ring alone -
+    // the text banner was eating the vertical room the cards need in landscape.
     const isMyTurn = state.phase === "playing" && state.turnSeat === my;
-    const banner = byId("turnBanner");
-    let mainText = "";
-    let subText = "";
-    let emoji = "";
-    if (state.phase === "trumpSelect") {
-      emoji = avatarFor(state.trumpCallerSeat);
-      if (state.trumpCallerSeat === my) {
-        mainText = "YOUR TURN";
-        subText = "Pick the trump suit";
-      } else {
-        mainText = seatLabel(state, state.trumpCallerSeat) + "…";
-        subText = "Choosing trump";
-      }
-    } else if (state.phase === "playing") {
-      emoji = avatarFor(state.turnSeat);
-      if (isMyTurn) {
-        mainText = "YOUR TURN";
-        subText = "Tap a card, then tap again";
-      } else {
-        mainText = seatLabel(state, state.turnSeat) + "…";
-        subText = "Waiting";
-      }
-    } else if (state.phase === "roundEnd") {
-      mainText = "Round finished";
-    }
-    setText("turnBannerEmoji", emoji);
-    setText("turnBannerText", mainText);
-    setText("turnBannerSub", subText);
-    if (banner) {
-      const mine = isMyTurn || (state.phase === "trumpSelect" && state.trumpCallerSeat === my);
-      banner.classList.toggle("mine", mine);
-    }
     document.body.classList.toggle("my-turn", isMyTurn);
 
     // ----- hand -----
