@@ -1,2 +1,7 @@
 node_modules/
 *.log
+android/local.properties
+android/app/build/
+android/build/
+android/.gradle/
+*.apk
