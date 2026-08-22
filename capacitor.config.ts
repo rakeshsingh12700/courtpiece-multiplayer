@@ -18,17 +18,16 @@ import type { CapacitorConfig } from '@capacitor/cli';
 //        server: { url: 'https://your-app.onrender.com', cleartext: false }
 //      This makes the native shell load the live site directly (same model
 //      Socket.IO already expects) instead of bundling a stale static copy.
-// TEMPORARY: pointed at the live cloudflared tunnel so this can be tested on
-// a real phone tonight. The tunnel URL changes if it restarts and this is
-// not a permanent backend - swap this for the real Render URL (see notes
-// above) before doing anything beyond your own testing, and definitely
-// before any store submission.
+// Points at the permanent Render deployment - confirmed live, running the
+// current code (client.js md5 matches local), and passing the full
+// multiplayer smoke test suite over a real network hop. No longer dependent
+// on this Mac or the cloudflared tunnel.
 const config: CapacitorConfig = {
   appId: 'com.rakeshsingh.courtpiece',
   appName: 'Court Piece',
   webDir: 'public',
   server: {
-    url: 'https://author-masters-particles-verified.trycloudflare.com',
+    url: 'https://courtpiece.onrender.com',
     cleartext: false
   }
 };
