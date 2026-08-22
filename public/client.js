@@ -690,29 +690,42 @@
 
   // ---------- Connection watchdog ----------
   // A socket can go "zombie" - reporting connected=true while no longer
-  // actually delivering data - a known failure mode that Socket.IO's own
-  // reconnect logic doesn't always catch, since from its point of view
-  // nothing looks wrong. Rather than debug that failure mode blind on a
-  // remote device, just detect staleness directly and force a full reload:
-  // during active play the server guarantees a state update at least every
-  // ~27s (turn timeout + trick pause) even if nobody touches their phone, so
-  // materially longer silence than that means the connection is dead, not
-  // that someone is thinking. A hard reload re-establishes everything from
-  // scratch - the same fix as manually closing and reopening the app, just
-  // automatic.
-  let lastStateAt = Date.now();
+  // actually delivering data - a failure mode Socket.IO's own reconnect
+  // logic doesn't reliably catch, since from its point of view nothing
+  // looks wrong. The first version of this waited for ~32s of silence
+  // during active play before reloading, sized that way specifically to
+  // never misfire during a legitimate slow human turn (the server only
+  // guarantees a state update every ~27s). That made it correct but slow
+  // enough that a truly dead connection still felt broken for half a
+  // minute. A heartbeat with the server sidesteps that tradeoff entirely:
+  // it has nothing to do with rooms or turns, so it can use a short timeout
+  // without ever confusing "the other player is thinking" with "this
+  // connection is dead" - roughly a 10-12s worst case instead of 32s.
+  let lastPongAt = Date.now();
+  let pingInFlight = false;
   setInterval(() => {
-    const st = lastState;
-    const expectingUpdates = st && (st.phase === "playing" || st.phase === "trumpSelect");
-    const silentFor = Date.now() - lastStateAt;
-    const zombie = expectingUpdates && silentFor > 32000;
-    const deadSocket = !socket.connected && silentFor > 10000 && document.visibilityState === "visible";
-    if (zombie || deadSocket) location.reload();
-  }, 4000);
+    if (!socket.connected) {
+      if (Date.now() - lastPongAt > 10000 && document.visibilityState === "visible") location.reload();
+      return;
+    }
+    if (pingInFlight) {
+      // The previous ping never got an ack - that alone, at this interval,
+      // already means ~2x the timeout has passed with no reply.
+      if (Date.now() - lastPongAt > 11000) location.reload();
+      return;
+    }
+    pingInFlight = true;
+    // socket.io-client's .timeout() calls the ack back with an error as the
+    // first argument if the server never responds in time - only a clean,
+    // error-free ack counts as proof the connection is actually alive.
+    socket.timeout(6000).emit("ping", (err) => {
+      pingInFlight = false;
+      if (!err) lastPongAt = Date.now();
+    });
+  }, 5000);
 
   // ---------- Main state render ----------
   socket.on("state", (state) => {
-    lastStateAt = Date.now();
     lastState = state;
     try {
       if (state.phase === "lobby") {

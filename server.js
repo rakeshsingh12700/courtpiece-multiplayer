@@ -229,6 +229,12 @@ function afterPlay(room, result) {
 }
 
 io.on("connection", (socket) => {
+  // A trivial round-trip the client can use to detect a dead/zombie
+  // connection fast (seconds, not the ~30s it'd take waiting for a game
+  // update) - deliberately has nothing to do with rooms or turns, so it
+  // never gets confused with "the other player is just thinking".
+  socket.on("ping", (cb) => { if (cb) cb(); });
+
   socket.on("createRoom", ({ playerId, name, icon }, cb) => {
     const code = randomCode();
     const room = new Room(code);
