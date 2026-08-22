@@ -334,6 +334,14 @@
       location.href = location.pathname;
     });
   }
+  // The waiting-room screen had no way out at all if something looked wrong
+  // before the game even started - same fix, same reasoning.
+  const exitLobbyBtn = byId("exitLobbyBtn");
+  if (exitLobbyBtn) {
+    exitLobbyBtn.addEventListener("click", () => {
+      location.href = location.pathname;
+    });
+  }
 
   const fillBotsBtn = byId("fillBotsBtn");
   if (fillBotsBtn) {
@@ -792,7 +800,11 @@
 
   function seatLabel(state, seat) {
     const p = state && state.players && state.players[seat];
-    return p ? p.name : "—";
+    if (!p) return "—";
+    // A benched (auto-played) seat shows the same marker a real bot does -
+    // from another player's seat, "missed 3 turns" and "is a bot" look and
+    // play identically, so the UI doesn't need a third state for it.
+    return p.name + (p.isBot ? " 🤖" : "");
   }
 
   function renderGame(state) {

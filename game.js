@@ -239,7 +239,7 @@ class Room {
   publicState() {
     return {
       code: this.code,
-      players: this.players.map((p) => (p ? { name: p.name, connected: p.connected, icon: p.icon || null } : null)),
+      players: this.players.map((p) => (p ? { name: p.name, connected: p.connected, icon: p.icon || null, isBot: !!p.isBot } : null)),
       phase: this.phase,
       dealerSeat: this.dealerSeat,
       trumpSuit: this.trumpSuit,

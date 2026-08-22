@@ -141,6 +141,44 @@ function chooseSmartCard(room, seat) {
   return Math.random() < 0.85 ? winners[0] : sorted[0];
 }
 
+// How many turns in a row a human seat has been auto-played because they
+// didn't respond in time. Bolted onto the room the same way _turnTimer and
+// turnDeadline already are (server-only bookkeeping, not core game state).
+function missStreak(room) {
+  if (!room.missStreak) room.missStreak = [0, 0, 0, 0];
+  return room.missStreak;
+}
+
+const MISSES_BEFORE_AUTOBOT = 3;
+
+// welcomeBack fires from chooseTrump/playCard, which only ever run from a
+// real connected client's socket event - a bot's own moves are driven
+// straight from autoPlayTurn, never through here - so reaching this always
+// means the person is genuinely present again. Reset their miss streak and
+// un-bench them if they'd been benched.
+function welcomeBack(room, seat) {
+  missStreak(room)[seat] = 0;
+  if (room.players[seat] && room.players[seat].isBot) {
+    room.players[seat].isBot = false;
+  }
+}
+
+// A human who's stepped away and missed 3 turns in a row gets converted to
+// a bot seat - fast (0.7-1.6s) smart-AI turns instead of the slow 25s human
+// timeout, so the table isn't stuck waiting on someone who isn't there. A
+// genuine manual play from that seat immediately reverts it via welcomeBack
+// above - this is a pause, not a kick.
+function recordMiss(room, seat) {
+  if (room.players[seat] && room.players[seat].isBot) return; // already benched
+  const streak = missStreak(room);
+  streak[seat] = (streak[seat] || 0) + 1;
+  if (streak[seat] >= MISSES_BEFORE_AUTOBOT && room.players[seat]) {
+    room.players[seat].isBot = true;
+    streak[seat] = 0;
+    io.to(room.code).emit("autoPlayed", { seat, kind: "benched" });
+  }
+}
+
 function autoPlayTurn(room) {
   room._turnTimer = null;
 
@@ -151,6 +189,7 @@ function autoPlayTurn(room) {
     for (const card of room.hands[seat] || []) counts[card.suit] = (counts[card.suit] || 0) + 1;
     const suit = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
     if (!suit || !room.chooseTrump(seat, suit)) return;
+    recordMiss(room, seat);
     io.to(room.code).emit("autoPlayed", { seat, kind: "trump", suit });
     armTurn(room);
     return;
@@ -164,6 +203,7 @@ function autoPlayTurn(room) {
   const result = room.playCard(seat, card.id);
   if (!result.ok) return;
 
+  recordMiss(room, seat);
   io.to(room.code).emit("autoPlayed", { seat, kind: "card", card });
   afterPlay(room, result);
 }
@@ -214,7 +254,10 @@ io.on("connection", (socket) => {
     if (!room) return;
     const seat = seatOf(room, playerId);
     if (seat === -1) return;
-    if (room.chooseTrump(seat, suit)) armTurn(room);
+    if (room.chooseTrump(seat, suit)) {
+      welcomeBack(room, seat);
+      armTurn(room);
+    }
   });
 
   socket.on("playCard", ({ playerId, cardId }) => {
@@ -224,6 +267,7 @@ io.on("connection", (socket) => {
     if (seat === -1) return;
     const result = room.playCard(seat, cardId);
     if (result.ok) {
+      welcomeBack(room, seat);
       afterPlay(room, result);
     } else {
       socket.emit("errorMsg", result.error);
