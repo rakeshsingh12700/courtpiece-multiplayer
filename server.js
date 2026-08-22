@@ -2,7 +2,7 @@ const path = require("path");
 const express = require("express");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
-const { Room } = require("./game");
+const { Room, isHigher, teamOf, RANK_VALUE } = require("./game");
 
 const app = express();
 const httpServer = createServer(app);
@@ -78,6 +78,55 @@ function armTurn(room) {
   broadcastState(room);
 }
 
+// Who's currently winning the trick so far, using the same comparison the
+// engine itself uses to resolve a finished trick.
+function currentTrickBest(room) {
+  if (!room.currentTrick.length) return null;
+  let best = room.currentTrick[0];
+  for (const play of room.currentTrick.slice(1)) {
+    if (isHigher(play.card, best.card, room.leadSuit, room.trumpSuit)) best = play;
+  }
+  return best;
+}
+
+// A small set of ordinary trick-taking rules - no lookahead, no memory of
+// past tricks, nothing resembling ML. This alone reads as "a person who
+// knows the basics" rather than "picks a random legal card", which is the
+// entire gap between a bot that's obviously a bot and one that isn't:
+//   - Leading: an ace of a plain (non-trump) suit is close to a free trick,
+//     so play it. Otherwise lead low from your longest suit - keeps
+//     strength in hand and probes for a suit an opponent is short in.
+//   - Following, partner already winning: no need to spend anything good -
+//     play your lowest legal card.
+//   - Following, an opponent winning: win as cheaply as possible if you
+//     can beat them at all; otherwise duck with your lowest card rather
+//     than wasting a good one on a trick you can't take.
+function chooseSmartCard(room, seat) {
+  const legal = room.legalMoves(seat);
+  if (legal.length <= 1) return legal[0];
+  const trump = room.trumpSuit;
+  const byRankAsc = (a, b) => RANK_VALUE[a.rank] - RANK_VALUE[b.rank];
+
+  if (!room.currentTrick.length) {
+    const aceLead = legal.find((c) => c.rank === "A" && c.suit !== trump);
+    if (aceLead) return aceLead;
+
+    const bySuit = {};
+    for (const c of legal) (bySuit[c.suit] = bySuit[c.suit] || []).push(c);
+    const nonTrumpSuits = Object.keys(bySuit).filter((s) => s !== trump);
+    const suits = nonTrumpSuits.length ? nonTrumpSuits : Object.keys(bySuit);
+    suits.sort((a, b) => bySuit[b].length - bySuit[a].length);
+    return bySuit[suits[0]].slice().sort(byRankAsc)[0];
+  }
+
+  const best = currentTrickBest(room);
+  const sorted = legal.slice().sort(byRankAsc);
+  if (best && teamOf(best.seat) === teamOf(seat)) return sorted[0];
+
+  const winners = best ? sorted.filter((c) => isHigher(c, best.card, room.leadSuit, room.trumpSuit)) : sorted;
+  return winners.length ? winners[0] : sorted[0];
+}
+
 function autoPlayTurn(room) {
   room._turnTimer = null;
 
@@ -96,9 +145,8 @@ function autoPlayTurn(room) {
   if (room.phase !== "playing") return;
 
   const seat = room.turnSeat;
-  const legal = room.legalMoves(seat);
-  if (!legal.length) return;
-  const card = legal[Math.floor(Math.random() * legal.length)];
+  const card = chooseSmartCard(room, seat);
+  if (!card) return;
   const result = room.playCard(seat, card.id);
   if (!result.ok) return;
 
@@ -127,17 +175,17 @@ function afterPlay(room, result) {
 }
 
 io.on("connection", (socket) => {
-  socket.on("createRoom", ({ playerId, name }, cb) => {
+  socket.on("createRoom", ({ playerId, name, icon }, cb) => {
     const code = randomCode();
     const room = new Room(code);
     rooms.set(code, room);
-    joinRoomInternal(socket, room, playerId, name, cb);
+    joinRoomInternal(socket, room, playerId, name, icon, cb);
   });
 
-  socket.on("joinRoom", ({ playerId, name, code }, cb) => {
+  socket.on("joinRoom", ({ playerId, name, icon, code }, cb) => {
     const room = rooms.get((code || "").toUpperCase());
     if (!room) return cb && cb({ ok: false, error: "Room not found" });
-    joinRoomInternal(socket, room, playerId, name, cb);
+    joinRoomInternal(socket, room, playerId, name, icon, cb);
   });
 
   socket.on("addBot", ({ playerId }) => {
@@ -181,6 +229,12 @@ io.on("connection", (socket) => {
     if (!room) return;
     if (room.seatedCount() < 4) return;
     if (room.phase !== "lobby") return;
+    // The very first round of a fresh table has no previous result to base
+    // the trump caller on, so it was defaulting to dealerSeat(0)+1 = seat 1
+    // every single time - always a bot (whoever filled seat 1), never
+    // whichever human happened to create the room. Randomize the dealer so
+    // every seat has a genuine equal chance to call trump first.
+    room.dealerSeat = Math.floor(Math.random() * 4);
     room.startRound();
     armTurn(room);
   });
@@ -195,8 +249,9 @@ io.on("connection", (socket) => {
   });
 });
 
-function joinRoomInternal(socket, room, playerId, name, cb) {
-  const seat = room.addPlayer(playerId, (name || "Player").slice(0, 16));
+function joinRoomInternal(socket, room, playerId, name, icon, cb) {
+  const safeIcon = typeof icon === "string" ? icon.slice(0, 8) : null;
+  const seat = room.addPlayer(playerId, (name || "Player").slice(0, 16), safeIcon);
   if (seat === -1) return cb && cb({ ok: false, error: "Room is full" });
   room.players[seat].socketId = socket.id;
   room.players[seat].connected = true;

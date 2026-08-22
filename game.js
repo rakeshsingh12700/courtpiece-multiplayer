@@ -62,7 +62,7 @@ class Room {
     return this.players.filter(Boolean).length;
   }
 
-  addPlayer(id, name) {
+  addPlayer(id, name, icon) {
     // rejoin?
     const existing = this.players.findIndex((p) => p && p.id === id);
     if (existing !== -1) {
@@ -70,11 +70,12 @@ class Room {
       // hand, and mark them live again so the room is not stuck "waiting".
       this.players[existing].connected = true;
       if (name) this.players[existing].name = name;
+      if (icon) this.players[existing].icon = icon;
       return existing;
     }
     const seat = this.players.findIndex((p) => p === null);
     if (seat === -1) return -1;
-    this.players[seat] = { id, name, connected: true };
+    this.players[seat] = { id, name, connected: true, icon: icon || null };
     return seat;
   }
 
@@ -238,7 +239,7 @@ class Room {
   publicState() {
     return {
       code: this.code,
-      players: this.players.map((p) => (p ? { name: p.name, connected: p.connected } : null)),
+      players: this.players.map((p) => (p ? { name: p.name, connected: p.connected, icon: p.icon || null } : null)),
       phase: this.phase,
       dealerSeat: this.dealerSeat,
       trumpSuit: this.trumpSuit,
@@ -282,4 +283,4 @@ function sortHand(a, b) {
   return RANK_VALUE[a.rank] - RANK_VALUE[b.rank];
 }
 
-module.exports = { Room, SUITS, SUIT_NAMES, svgSymbolId, teamOf };
+module.exports = { Room, SUITS, SUIT_NAMES, svgSymbolId, teamOf, isHigher, RANK_VALUE };

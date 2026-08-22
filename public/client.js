@@ -51,53 +51,20 @@
     note(1320, 0.12, 0.3, 0.18);
   }
 
-  // A short percussive "tap" - a card landing on the table, not a tone. Built
-  // from filtered noise rather than an oscillator so it reads as a physical
-  // hit instead of a beep.
-  // A crisp, pitched "flick" - like a card being snapped down onto a table -
-  // rather than the harsher filtered-noise "tap" this replaces. A fast
-  // downward pitch sweep on a triangle wave reads as a physical flick; a very
-  // brief noise click layered under the attack adds the texture of the card
-  // hitting the felt without the whole sound being noisy.
-  function playCardLandSound() {
-    const ctx = ensureAudioCtx();
-    if (!ctx) return;
-    if (ctx.state === "suspended") ctx.resume();
-    const now = ctx.currentTime;
+  // Card plays are silent by design now - only the turn chime plays, so
+  // sound means exactly one thing: it's your move.
 
-    const osc = ctx.createOscillator();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(920, now);
-    osc.frequency.exponentialRampToValueAtTime(340, now + 0.1);
-    const oscGain = ctx.createGain();
-    oscGain.gain.setValueAtTime(0.001, now);
-    oscGain.gain.exponentialRampToValueAtTime(0.28, now + 0.008);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
-    osc.connect(oscGain);
-    oscGain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.15);
-
-    const clickDur = 0.02;
-    const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * clickDur));
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
-    const click = ctx.createBufferSource();
-    click.buffer = buffer;
-    const clickGain = ctx.createGain();
-    clickGain.gain.setValueAtTime(0.22, now);
-    clickGain.gain.exponentialRampToValueAtTime(0.001, now + clickDur);
-    click.connect(clickGain);
-    clickGain.connect(ctx.destination);
-    click.start(now);
-    click.stop(now + clickDur + 0.01);
-  }
-
-  // One distinct character per SEAT INDEX, so every phone shows the same
-  // animal for the same person. Players who cannot read still know who is who.
+  // A free pack of characters to choose from - avatars are personal, so an
+  // auto-assigned animal (the old behaviour) isn't for everyone. Whatever a
+  // player picks is sent to the server and shown to every seat; seat-index
+  // animals are only the fallback for anyone who never picked (bots, or an
+  // older client), so every player still stays visually distinguishable for
+  // someone who can't read names.
+  const ICON_PACK = ["🐯", "🦊", "🐼", "🦁", "🐶", "🐱", "🐵", "🐸", "🐨", "🐰", "🦉", "🐷", "🐺", "🦄", "🐔", "🐢"];
   const SEAT_AVATARS = ["🐯", "🦊", "🐼", "🦁"];
-  function avatarFor(seat) {
+  function avatarFor(state, seat) {
+    const p = state && state.players && state.players[seat];
+    if (p && p.icon) return p.icon;
     const i = ((Number(seat) % 4) + 4) % 4;
     return SEAT_AVATARS[i] || "🙂";
   }
@@ -159,7 +126,7 @@
       // broadcasting into the void forever unless we re-announce ourselves -
       // this single re-join is what the previous "stuck until I refresh"
       // symptom actually was.
-      socket.emit("joinRoom", { playerId, name: resolveName(), code: currentCode }, handleJoinResult);
+      socket.emit("joinRoom", { playerId, name: resolveName(), icon: resolveIcon(), code: currentCode }, handleJoinResult);
     }
     hasConnectedOnce = true;
   });
@@ -254,8 +221,41 @@
   }
   setText("nameEcho", storedName() || autoName());
 
+  // ---------- Icon picker ----------
+  function storedIcon() {
+    try { return localStorage.getItem("cp_icon") || ""; } catch (e) { return ""; }
+  }
+  function rememberIcon(icon) {
+    try { localStorage.setItem("cp_icon", icon); } catch (e) { /* ignore */ }
+  }
+  function resolveIcon() {
+    return storedIcon() || ICON_PACK[Math.floor(Math.random() * ICON_PACK.length)];
+  }
+  const iconPicker = byId("iconPicker");
+  if (iconPicker) {
+    let myIcon = storedIcon();
+    if (!myIcon) {
+      myIcon = resolveIcon();
+      rememberIcon(myIcon);
+    }
+    setText("iconEcho", myIcon);
+    ICON_PACK.forEach((icon) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "icon-opt" + (icon === myIcon ? " selected" : "");
+      btn.textContent = icon;
+      btn.addEventListener("click", () => {
+        rememberIcon(icon);
+        setText("iconEcho", icon);
+        iconPicker.querySelectorAll(".icon-opt").forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+      });
+      iconPicker.appendChild(btn);
+    });
+  }
+
   byId("createBtn").addEventListener("click", () => {
-    socket.emit("createRoom", { playerId, name: resolveName() }, handleJoinResult);
+    socket.emit("createRoom", { playerId, name: resolveName(), icon: resolveIcon() }, handleJoinResult);
   });
 
   function doJoin(code) {
@@ -265,7 +265,7 @@
       return;
     }
     homeError.textContent = "Joining…";
-    socket.emit("joinRoom", { playerId, name: resolveName(), code }, handleJoinResult);
+    socket.emit("joinRoom", { playerId, name: resolveName(), icon: resolveIcon(), code }, handleJoinResult);
   }
 
   byId("joinBtn").addEventListener("click", () => {
@@ -738,7 +738,7 @@
         who.className = "who";
         const av = document.createElement("span");
         av.className = "av";
-        av.textContent = avatarFor(i);
+        av.textContent = avatarFor(state, i);
         const label = document.createElement("span");
         label.textContent = "Seat " + (i + 1);
         who.appendChild(av);
@@ -786,7 +786,7 @@
       seatEl.classList.toggle("active", isTurn);
       seatEl.classList.toggle("disconnected", !!(p && p.connected === false));
       for (let i = 0; i < 4; i++) seatEl.classList.toggle("av" + i, i === seat);
-      setText("avatar-" + pos, avatarFor(seat));
+      setText("avatar-" + pos, avatarFor(state, seat));
       if (pos !== "bottom") setText("name-" + pos, seatLabel(state, seat));
     });
 
@@ -809,17 +809,15 @@
       trumpBadge.innerHTML = "";
       if (state.trumpSuit) {
         trumpBadge.classList.add("has-trump");
-        const label = document.createElement("span");
-        label.className = "tb-label";
-        label.textContent = "Trump";
         const pip = document.createElement("span");
         pip.className = "tb-pip" + (RED_SUITS[state.trumpSuit] ? " red" : " black");
         pip.textContent = SUIT_SYMBOL[state.trumpSuit] || "";
-        trumpBadge.appendChild(label);
         trumpBadge.appendChild(pip);
       } else {
+        // Still choosing - a plain "?" rather than a word, same reasoning as
+        // the suit symbol itself: the icon system reads without literacy.
         trumpBadge.classList.remove("has-trump");
-        trumpBadge.textContent = "Trump: choosing…";
+        trumpBadge.textContent = "?";
       }
     }
 
@@ -840,17 +838,14 @@
       // Fewer cards than last time means a new trick began (the table was
       // just cleared) - nothing on it now has already been animated.
       if (trickSeats.length < lastTrickSeats.length) lastTrickSeats = [];
-      let anyNew = false;
 
       trick.forEach((entry) => {
         if (!entry || !entry.card) return;
         const pos = posOf[entry.seat] || "bottom";
         const isNew = !lastTrickSeats.includes(entry.seat);
-        if (isNew) anyNew = true;
         trickArea.appendChild(cardTile(entry.card, "tcard pos-" + pos + (isNew ? " fly-" + pos : "")));
       });
       lastTrickSeats = trickSeats;
-      if (anyNew) playCardLandSound();
     }
 
     // Whose turn it is reads off the pulsing avatar + countdown ring alone -
@@ -948,7 +943,12 @@
       const won = r.winningTeam === myTeam;
       const courtBanner = byId("courtBanner");
       if (courtBanner) courtBanner.classList.toggle("hidden", !r.isCourt);
-      setText("roundEndTitle", r.winningTeam ? (won ? "🎉 Your team won!" : "Your team lost") : "Round tied");
+      const card = document.querySelector("#roundEndOverlay .overlay-card");
+      if (card) {
+        card.classList.toggle("win", !!r.winningTeam && won);
+        card.classList.toggle("loss", !!r.winningTeam && !won);
+      }
+      setText("roundEndTitle", r.winningTeam ? (won ? "Your team won" : "Your team lost") : "Round tied");
       const rt = r.tricksWon || { A: 0, B: 0 };
       const nextNote = r.callerSucceeded
         ? (r.isCourt ? "Trump passes to the caller's partner next round." : "The same player calls trump again next round.")

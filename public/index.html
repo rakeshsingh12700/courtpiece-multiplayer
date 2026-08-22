@@ -28,7 +28,8 @@
     </div>
 
     <details class="name-details">
-      <summary>Playing as <b id="nameEcho">…</b> — tap to change</summary>
+      <summary>Playing as <span id="iconEcho">🐯</span> <b id="nameEcho">…</b> — tap to change</summary>
+      <div class="icon-picker" id="iconPicker"></div>
       <input id="nameInput" maxlength="16" placeholder="Your name (optional)" autocomplete="off" />
     </details>
 
@@ -57,7 +58,7 @@
 <div id="screen-game" class="screen hidden">
   <div class="table" id="tableEl">
     <div class="hud" id="hudBar">
-      <button id="exitBtn" class="exit-btn" aria-label="Leave game">✕</button>
+      <button id="exitBtn" class="exit-btn" aria-label="Leave to lobby">⬅ Lobby</button>
       <div class="score">
         <span class="team-a" id="scoreA">Us 0</span>
         <span class="sep">·</span>
