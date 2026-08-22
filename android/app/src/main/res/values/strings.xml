@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Court Piece</string>
+    <string name="title_activity_main">Court Piece</string>
+    <string name="package_name">com.rakeshsingh.courtpiece</string>
+    <string name="custom_url_scheme">com.rakeshsingh.courtpiece</string>
+</resources>
