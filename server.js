@@ -168,14 +168,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("reaction", ({ playerId, emoji }) => {
-    const room = roomOfPlayer(playerId);
-    if (!room) return;
-    const seat = seatOf(room, playerId);
-    if (seat === -1) return;
-    io.to(room.code).emit("reaction", { seat, emoji });
-  });
-
   socket.on("nextRound", ({ playerId }) => {
     const room = roomOfPlayer(playerId);
     if (!room) return;

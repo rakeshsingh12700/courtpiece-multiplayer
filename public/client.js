@@ -9,6 +9,48 @@
   const CARD_VIEWBOX = "0 0 212 329";
   const ASPECT = 329 / 212; // card height / card width
 
+  // ---------- Turn sound: a short synthesized chime, no audio file needed ----------
+  let audioCtx = null;
+  let wasMyAction = false;
+  function ensureAudioCtx() {
+    if (audioCtx) return audioCtx;
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { audioCtx = null; }
+    return audioCtx;
+  }
+  // iOS Safari only allows audio to start from inside a user gesture. Any tap
+  // anywhere unlocks the context for every chime played for the rest of the
+  // session, so this only needs to run once.
+  document.addEventListener(
+    "pointerdown",
+    () => {
+      const ctx = ensureAudioCtx();
+      if (ctx && ctx.state === "suspended") ctx.resume();
+    },
+    { once: true, passive: true }
+  );
+  function playTurnChime() {
+    const ctx = ensureAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    const note = (freq, start, dur, peak) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + start);
+      gain.gain.setValueAtTime(0, now + start);
+      gain.gain.linearRampToValueAtTime(peak, now + start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + start);
+      osc.stop(now + start + dur + 0.02);
+    };
+    note(880, 0, 0.26, 0.22);
+    note(1320, 0.12, 0.3, 0.18);
+  }
+
   // One distinct character per SEAT INDEX, so every phone shows the same
   // animal for the same person. Players who cannot read still know who is who.
   const SEAT_AVATARS = ["🐯", "🦊", "🐼", "🦁"];
@@ -206,6 +248,17 @@
     socket.emit("startGame", { playerId });
   });
 
+  const exitBtn = byId("exitBtn");
+  if (exitBtn) {
+    exitBtn.addEventListener("click", () => {
+      if (!confirm("Leave this game and return to the lobby?")) return;
+      // A full reload is the simplest way to land back on a clean home
+      // screen and drop the ?room= param - the server marks the seat
+      // disconnected, same as closing the tab.
+      location.href = location.pathname;
+    });
+  }
+
   const fillBotsBtn = byId("fillBotsBtn");
   if (fillBotsBtn) {
     fillBotsBtn.addEventListener("click", () => {
@@ -242,32 +295,7 @@
     socket.emit("nextRound", { playerId });
   });
 
-  // ---------- Toast ----------
-  let toastTimer = null;
-  function showToast(text) {
-    const el = byId("toast");
-    if (!el) return;
-    el.textContent = text;
-    el.classList.remove("hidden");
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.add("hidden"), 3200);
-  }
-
-  // ---------- Emoji reactions ----------
-  const reactionBtn = byId("reactionBtn");
-  const reactionPanel = byId("reactionPanel");
-  const reactionLayer = byId("reactionLayer");
   let lastState = null;
-
-  reactionBtn.addEventListener("click", () => {
-    reactionPanel.classList.toggle("hidden");
-  });
-  document.querySelectorAll(".emoji-opt").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      socket.emit("reaction", { playerId, emoji: btn.textContent });
-      reactionPanel.classList.add("hidden");
-    });
-  });
 
   function seatPosKey(seat) {
     if (!lastState || typeof lastState.yourSeat !== "number") return "bottom";
@@ -277,29 +305,8 @@
     if (seat === (my + 2) % 4) return "top";
     return "right";
   }
-
-  socket.on("reaction", ({ seat, emoji }) => {
-    const anchor = byId("seat-" + seatPosKey(seat));
-    if (!anchor) return;
-    const rect = anchor.getBoundingClientRect();
-    const el = document.createElement("div");
-    el.className = "floating-emoji";
-    el.textContent = emoji;
-    el.style.left = rect.left + rect.width / 2 - 18 + "px";
-    el.style.top = rect.top - 10 + "px";
-    reactionLayer.appendChild(el);
-    setTimeout(() => el.remove(), 1800);
-  });
-
-  socket.on("autoPlayed", (info) => {
-    if (!info) return;
-    const seat = info.seat;
-    const name = lastState ? seatLabel(lastState, seat) : "Player";
-    let what = "";
-    if (info.kind === "trump" && info.suit) what = " — trump " + (SUIT_SYMBOL[info.suit] || info.suit);
-    else if (info.card) what = " — played " + info.card.rank + (SUIT_SYMBOL[info.card.suit] || "");
-    showToast(`⏱ ${avatarFor(seat)} ${name} ran out of time${what}`);
-  });
+  // autoPlayed events (a stalled turn playing itself) are silent by design -
+  // what matters is the game keeps moving, not a text callout about it.
 
   // ---------- Countdown ring around the active player's avatar ----------
   const RING_R = 45;
@@ -494,6 +501,7 @@
   function endDrag(snapBack) {
     if (!drag) return;
     const tile = drag.tile;
+    if (drag.watchdog) clearTimeout(drag.watchdog);
     drag = null;
     document.body.classList.remove("dragging-card");
     setDropActive(false);
@@ -514,6 +522,10 @@
       if (drag) return;
       if (!tile.classList.contains("playable")) return;
       drag = { tile, cardId, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, moved: false };
+      // Belt and braces against any pointer-event edge case we haven't seen:
+      // a stuck "drag" blocks every future tap/drag on every card, so it must
+      // never be allowed to persist indefinitely.
+      drag.watchdog = setTimeout(() => { if (drag && drag.tile === tile) endDrag(true); }, 4000);
       try { tile.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
     });
 
@@ -555,8 +567,14 @@
       if (e && e.pointerId !== undefined && e.pointerId !== drag.pointerId) return;
       endDrag(true);
     });
+    // Capture can be lost for reasons other than our own pointerup/cancel
+    // (the tile leaving the DOM on a rebuild, an OS gesture stealing the
+    // touch). Whatever the cause, once it's lost this tile can no longer
+    // receive the matching pointerup - clear the pending drag/tap unconditionally
+    // or "drag" gets stuck non-null and every future tap on every card silently
+    // no-ops until a full page reload.
     tile.addEventListener("lostpointercapture", () => {
-      if (drag && drag.tile === tile && drag.moved) endDrag(true);
+      if (drag && drag.tile === tile) endDrag(true);
     });
   }
 
@@ -605,6 +623,18 @@
   }
   window.addEventListener("resize", scheduleRelayout);
   window.addEventListener("orientationchange", scheduleRelayout);
+
+  // Mobile Safari reserves real screen space for its address bar/tab strip
+  // until the page is scrolled, especially right after rotating to landscape
+  // - which is most of why landscape felt cramped. Nudging a 1px scroll asks
+  // it to collapse that chrome and hand the space back to the page; the
+  // resulting resize event re-runs layout with the extra height.
+  function nudgeChromeCollapse() {
+    window.scrollTo(0, 1);
+    setTimeout(() => window.scrollTo(0, 1), 300);
+  }
+  window.addEventListener("orientationchange", () => setTimeout(nudgeChromeCollapse, 250));
+  nudgeChromeCollapse();
 
   function renderWaiting(state) {
     if (state.code) currentCode = state.code; // keeps the share link right
@@ -719,6 +749,13 @@
     // the text banner was eating the vertical room the cards need in landscape.
     const isMyTurn = state.phase === "playing" && state.turnSeat === my;
     document.body.classList.toggle("my-turn", isMyTurn);
+
+    // Chime once on the moment it becomes your move to play a card or call
+    // trump - not on every re-render while it's still your turn (a drag
+    // re-renders the same state repeatedly).
+    const isMyAction = isMyTurn || (state.phase === "trumpSelect" && state.trumpCallerSeat === my);
+    if (isMyAction && !wasMyAction) playTurnChime();
+    wasMyAction = isMyAction;
 
     // ----- hand -----
     if (drag) endDrag(true); // a fresh state invalidates any in-flight drag

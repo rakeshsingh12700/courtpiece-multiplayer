@@ -1,14 +1,25 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {
-  margin: 0; padding: 0; height: 100%; width: 100%;
+  margin: 0; padding: 0; width: 100%;
   background: #0b3d24;
   color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  overflow: hidden;
   overscroll-behavior: none;
   user-select: none; -webkit-user-select: none;
   -webkit-touch-callout: none;
   max-width: 100%;
+}
+html {
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  /* Every screen is position:fixed and paints over this, so a sliver of
+     extra document height is safe - it exists only so a 1px scroll can ask
+     mobile Safari to collapse its address bar and hand the space back. */
+  height: 100.1%;
+  overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 #cardDefs { position: absolute; width: 0; height: 0; overflow: hidden; }
@@ -440,48 +451,14 @@ body.dragging-card .drop-zone span { opacity: 0.9; color: var(--gold); }
 .card-tile.selected .tile-hint { display: block; }
 .card-tile.dragging .tile-hint { display: none; }
 
-/* ---------- Emoji reactions ---------- */
-.reaction-btn {
-  position: absolute; left: 8px; top: calc(50% - 24px);
-  width: 46px; height: 46px; border-radius: 50%; border: none;
-  background: rgba(255,255,255,0.2); font-size: 1.45rem; cursor: pointer;
-  z-index: 15;
+/* ---------- Exit to lobby ---------- */
+.exit-btn {
+  width: 30px; height: 30px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,0.16); color: #fff;
+  font-size: 1rem; font-weight: 700; line-height: 1; cursor: pointer;
+  flex: 0 0 auto;
 }
-.reaction-panel {
-  position: absolute; left: 8px; top: calc(50% + 30px);
-  background: rgba(10,40,26,0.97); border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 16px; padding: 8px; display: flex; flex-wrap: wrap; gap: 6px;
-  width: 116px;
-  z-index: 16;
-}
-.emoji-opt {
-  width: 46px; height: 46px; font-size: 1.5rem; border: none; border-radius: 10px;
-  background: transparent; cursor: pointer;
-}
-.emoji-opt:active { background: rgba(255,255,255,0.2); }
-
-#reactionLayer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 18; }
-.floating-emoji {
-  position: absolute; font-size: 2.4rem;
-  animation: floatUp 1.8s ease-out forwards;
-}
-@keyframes floatUp {
-  0% { transform: translateY(0) scale(0.6); opacity: 0; }
-  15% { transform: translateY(-10px) scale(1.15); opacity: 1; }
-  100% { transform: translateY(-140px) scale(1); opacity: 0; }
-}
-
-/* ---------- Toast ---------- */
-.toast {
-  position: absolute; left: 50%; top: calc(8px + env(safe-area-inset-top));
-  transform: translateX(-50%);
-  background: rgba(0,0,0,0.88); border: 2px solid var(--gold);
-  color: #fff; font-weight: 800;
-  font-size: clamp(0.95rem, 3.8vw, 1.15rem);
-  padding: 10px 16px; border-radius: 14px;
-  max-width: 90vw; text-align: center;
-  z-index: 25; pointer-events: none;
-}
+.exit-btn:active { background: rgba(255,60,60,0.5); }
 
 /* ---------- Overlays ---------- */
 .overlay {
@@ -537,8 +514,6 @@ body.dragging-card .drop-zone span { opacity: 0.9; color: var(--gold); }
   .turn-banner { min-height: 40px; padding: 5px 10px; }
   #turnBannerText { font-size: 1.05rem; }
   .banner-emoji { font-size: 1.5rem; }
-  .reaction-btn { width: 42px; height: 42px; top: auto; bottom: calc(4px + env(safe-area-inset-bottom)); }
-  .reaction-panel { top: auto; bottom: calc(50px + env(safe-area-inset-bottom)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
