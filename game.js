@@ -53,6 +53,9 @@ class Room {
     this.tricksTaken = []; // history: {winnerSeat, cards:[{seat,card}]}
     this.lastTrick = null;
     this.roundResult = null;
+    // Rounds won across the whole session (not reset by startRound), so the
+    // family can see who's ahead over the course of the night.
+    this.sessionWins = { A: 0, B: 0 };
   }
 
   seatedCount() {
@@ -95,20 +98,28 @@ class Room {
     return this.players.every((p) => p && p.connected);
   }
 
-  startRound() {
+  // callerSeat picks who calls trump this round. Omit it only for the very
+  // first round of a room's life, where there is no previous result to base
+  // it on - it then defaults to the seat left of the dealer, same as before.
+  startRound(callerSeat) {
+    const caller = typeof callerSeat === "number" ? callerSeat : (this.dealerSeat + 1) % 4;
+    // The caller sits to the dealer's left, same relationship as always -
+    // dealing order and "whose turn after trump is chosen" both key off this.
+    this.dealerSeat = (caller + 3) % 4;
+
     const deck = shuffle(makeDeck());
     this.hands = [[], [], [], []];
     for (let i = 0; i < 4; i++) {
-      const seat = (this.dealerSeat + 1 + i) % 4;
+      const seat = (caller + i) % 4;
       this.hands[seat] = deck.slice(i * 13, i * 13 + 5);
     }
     this._pendingRest = {};
     for (let i = 0; i < 4; i++) {
-      const seat = (this.dealerSeat + 1 + i) % 4;
+      const seat = (caller + i) % 4;
       this._pendingRest[seat] = deck.slice(i * 13 + 5, i * 13 + 13);
     }
     this.trumpSuit = null;
-    this.trumpCallerSeat = (this.dealerSeat + 1) % 4;
+    this.trumpCallerSeat = caller;
     this.currentTrick = [];
     this.leadSuit = null;
     this.tricksWon = { A: 0, B: 0 };
@@ -176,10 +187,19 @@ class Room {
       roundOver = true;
       const winningTeam = this.tricksWon.A > this.tricksWon.B ? "A" : this.tricksWon.B > this.tricksWon.A ? "B" : null;
       const callerTeam = teamOf(this.trumpCallerSeat);
+      const callerSucceeded = winningTeam === callerTeam;
+      // A "court" is the caller's team winning without their opponents
+      // taking a single trick - the round can only end this early (before
+      // all 13 are played) once one side reaches 7, so the opponents being
+      // held to 0 at that moment is the sweep condition, not literally 13-0.
+      const opponentTeam = callerTeam === "A" ? "B" : "A";
+      const isCourt = callerSucceeded && this.tricksWon[opponentTeam] === 0;
+      if (winningTeam) this.sessionWins[winningTeam]++;
       this.roundResult = {
         winningTeam,
         callerTeam,
-        callerSucceeded: winningTeam === callerTeam,
+        callerSucceeded,
+        isCourt,
         tricksWon: { ...this.tricksWon },
       };
       this.phase = "roundEnd";
@@ -196,9 +216,23 @@ class Room {
     return best.seat;
   }
 
+  // Who calls trump next round depends on how this one ended:
+  //  - caller's team won outright (a "court", sweeping the opponents 7-0) ->
+  //    trump passes to the caller's own PARTNER, as a reward for the sweep.
+  //  - caller's team won normally -> the same person calls again.
+  //  - caller's team lost -> trump passes to the next seat in turn order,
+  //    which (with partners seated opposite each other) is always someone
+  //    on the OTHER team.
   nextDealerAndContinue() {
-    this.dealerSeat = (this.dealerSeat + 1) % 4;
-    this.startRound();
+    const prev = this.roundResult;
+    const caller = this.trumpCallerSeat;
+    let nextCaller;
+    if (prev && prev.callerSucceeded) {
+      nextCaller = prev.isCourt ? (caller + 2) % 4 : caller;
+    } else {
+      nextCaller = (caller + 1) % 4;
+    }
+    this.startRound(nextCaller);
   }
 
   publicState() {
@@ -213,6 +247,7 @@ class Room {
       leadSuit: this.leadSuit,
       turnSeat: this.turnSeat,
       tricksWon: this.tricksWon,
+      sessionWins: this.sessionWins,
       handCounts: this.hands.map((h) => h.length),
       lastTrick: this.lastTrick,
       roundResult: this.roundResult,

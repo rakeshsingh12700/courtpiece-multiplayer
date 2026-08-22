@@ -9,6 +9,7 @@
 <body>
 
 <div id="cardDefs" aria-hidden="true"></div>
+<div id="connBanner" class="conn-banner hidden">Reconnecting…</div>
 
 <!-- HOME / LOBBY -->
 <div id="screen-home" class="screen">
@@ -61,6 +62,7 @@
         <span class="team-a" id="scoreA">Us 0</span>
         <span class="sep">·</span>
         <span class="team-b" id="scoreB">Them 0</span>
+        <span class="gamesBadge" id="gamesBadge" title="Rounds won this session">🏆 0–0</span>
       </div>
       <div class="trumpBadge" id="trumpBadge">Trump: —</div>
       <div class="roomBadge" id="roomBadgeGame"></div>
@@ -131,19 +133,15 @@
   <div id="trumpOverlay" class="overlay hidden">
     <div class="overlay-card">
       <h2 id="trumpTitle">Choose Trump (Rung)</h2>
+      <p class="trump-hint">Tap one of your cards — its suit becomes trump</p>
       <div class="mini-hand" id="miniHand"></div>
-      <div class="suit-grid">
-        <button class="suit-btn" data-suit="S">♠<br />Spades</button>
-        <button class="suit-btn" data-suit="H">♥<br />Hearts</button>
-        <button class="suit-btn" data-suit="D">♦<br />Diamonds</button>
-        <button class="suit-btn" data-suit="C">♣<br />Clubs</button>
-      </div>
     </div>
   </div>
 
   <!-- Round end overlay -->
   <div id="roundEndOverlay" class="overlay hidden">
     <div class="overlay-card">
+      <div id="courtBanner" class="court-banner hidden">🏰 COURT! 🏰</div>
       <h2 id="roundEndTitle">Round Over</h2>
       <p id="roundEndDetail"></p>
       <button id="nextRoundBtn" class="btn primary">Next Round</button>

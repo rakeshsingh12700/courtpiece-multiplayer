@@ -54,32 +54,44 @@
   // A short percussive "tap" - a card landing on the table, not a tone. Built
   // from filtered noise rather than an oscillator so it reads as a physical
   // hit instead of a beep.
+  // A crisp, pitched "flick" - like a card being snapped down onto a table -
+  // rather than the harsher filtered-noise "tap" this replaces. A fast
+  // downward pitch sweep on a triangle wave reads as a physical flick; a very
+  // brief noise click layered under the attack adds the texture of the card
+  // hitting the felt without the whole sound being noisy.
   function playCardLandSound() {
     const ctx = ensureAudioCtx();
     if (!ctx) return;
     if (ctx.state === "suspended") ctx.resume();
     const now = ctx.currentTime;
-    const dur = 0.09;
-    const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * dur));
+
+    const osc = ctx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(920, now);
+    osc.frequency.exponentialRampToValueAtTime(340, now + 0.1);
+    const oscGain = ctx.createGain();
+    oscGain.gain.setValueAtTime(0.001, now);
+    oscGain.gain.exponentialRampToValueAtTime(0.28, now + 0.008);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.15);
+
+    const clickDur = 0.02;
+    const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * clickDur));
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
-    }
-    const noise = ctx.createBufferSource();
-    noise.buffer = buffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.setValueAtTime(1800, now);
-    filter.Q.value = 0.9;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.5, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
-    noise.start(now);
-    noise.stop(now + dur + 0.02);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    const click = ctx.createBufferSource();
+    click.buffer = buffer;
+    const clickGain = ctx.createGain();
+    clickGain.gain.setValueAtTime(0.22, now);
+    clickGain.gain.exponentialRampToValueAtTime(0.001, now + clickDur);
+    click.connect(clickGain);
+    clickGain.connect(ctx.destination);
+    click.start(now);
+    click.stop(now + clickDur + 0.01);
   }
 
   // One distinct character per SEAT INDEX, so every phone shows the same
@@ -118,7 +130,42 @@
   }
 
   const playerId = getPlayerId();
-  const socket = io();
+  const socket = io({
+    // Reconnect fast and keep trying indefinitely - a phone (especially iOS
+    // Safari, which suspends background/locked tabs far more aggressively
+    // than Android) can drop and re-establish its connection many times
+    // over the course of one game.
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 400,
+    reconnectionDelayMax: 3000,
+  });
+
+  let currentCode = null;
+  let hasConnectedOnce = false;
+
+  function setConnBanner(text) {
+    const el = byId("connBanner");
+    if (!el) return;
+    if (text) { el.textContent = text; el.classList.remove("hidden"); }
+    else el.classList.add("hidden");
+  }
+
+  socket.on("connect", () => {
+    setConnBanner(null);
+    if (hasConnectedOnce && currentCode) {
+      // The transport reconnected with a brand new connection id. The
+      // server still has our OLD id on file for this seat and would keep
+      // broadcasting into the void forever unless we re-announce ourselves -
+      // this single re-join is what the previous "stuck until I refresh"
+      // symptom actually was.
+      socket.emit("joinRoom", { playerId, name: resolveName(), code: currentCode }, handleJoinResult);
+    }
+    hasConnectedOnce = true;
+  });
+  socket.on("disconnect", () => {
+    if (currentCode) setConnBanner("Reconnecting…");
+  });
 
   // load sprite sheet into hidden container so <use> works locally (avoids
   // cross-file <use> issues on mobile Safari)
@@ -235,8 +282,6 @@
     });
   }
 
-  let currentCode = null;
-
   function handleJoinResult(res) {
     if (!res || !res.ok) {
       homeError.textContent = (res && res.error) || "Could not join room";
@@ -315,11 +360,6 @@
   // ---------- Overlays ----------
   const trumpOverlay = byId("trumpOverlay");
   const miniHand = byId("miniHand");
-  document.querySelectorAll(".suit-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      socket.emit("chooseTrump", { playerId, suit: btn.dataset.suit });
-    });
-  });
 
   const roundEndOverlay = byId("roundEndOverlay");
   byId("nextRoundBtn").addEventListener("click", () => {
@@ -411,11 +451,23 @@
     const topH = squat ? 0 : measuredH("topRow", 78);
     const banH = squat ? 0 : measuredH("bannerRow", 58);
 
-    // Split whatever is left after the hud between the hand and the trick
-    // area, roughly evenly, so both grow together as the viewport allows
-    // rather than one starving the other via a fixed floor.
-    const remaining = Math.max(90, vh - hudH - topH - banH - BOTTOM_PAD);
-    let avail = remaining * (squat ? 0.46 : 0.42);
+    // Landscape and portrait need different splits. Landscape is genuinely
+    // short on total height, so hand and trick area have to share it
+    // proportionally or one starves the other. Portrait has height to spare -
+    // a proportional split there just kept inflating the trick area on tall
+    // phones while the hand shrank, which is the opposite of useful (the
+    // trick area doesn't need to keep growing once it's already legible).
+    // Portrait instead reserves a fixed amount for the trick area and gives
+    // everything else to the hand, up to the hand's own MAX_CARD_W cap.
+    let avail;
+    if (squat) {
+      const remaining = Math.max(90, vh - hudH - topH - banH - BOTTOM_PAD);
+      avail = remaining * 0.46;
+    } else {
+      const minMiddle = 168;
+      avail = vh - hudH - topH - banH - minMiddle - BOTTOM_PAD;
+      avail = Math.min(avail, vh * 0.43);
+    }
     avail = Math.max(avail, 56);
 
     function option(rows) {
@@ -458,10 +510,10 @@
     // The four played cards sit in a tight overlapping cross, the way they land
     // on a real table. Keeping it compact is what lets each card be BIG: the
     // cross spans ~1.8 card heights vertically and ~2.85 card widths across.
-    const crossV = 1.9;
-    const crossH = 3.03;
+    const crossV = 1.7;
+    const crossH = 2.7;
     let tW = (middleH - 6) / crossV / ASPECT;
-    tW = Math.min(tW, midW / crossH, 168);
+    tW = Math.min(tW, midW / crossH, 210);
     tW = Math.max(tW, 30);
 
     // Large-print corner index: sized off the card, but never wider than the
@@ -743,6 +795,13 @@
     setText("scoreA", (myTeam === "A" ? "Us " : "Them ") + tricks.A);
     setText("scoreB", (myTeam === "B" ? "Us " : "Them ") + tricks.B);
 
+    // Rounds won across the whole session (not the current round's trick
+    // count), so the family can see who's ahead over the course of the night.
+    const wins = state.sessionWins || { A: 0, B: 0 };
+    const myWins = myTeam === "A" ? wins.A : wins.B;
+    const theirWins = myTeam === "A" ? wins.B : wins.A;
+    setText("gamesBadge", `🏆 ${myWins}–${theirWins}`);
+
     // Trump suit is drawn in its true colour (red hearts/diamonds, black
     // spades/clubs) on a white chip, so the suit reads without reading words.
     const trumpBadge = byId("trumpBadge");
@@ -870,7 +929,13 @@
       if (trumpOverlay) trumpOverlay.classList.remove("hidden");
       if (miniHand) {
         miniHand.innerHTML = "";
-        hand.forEach((card) => miniHand.appendChild(cardTile(card)));
+        hand.forEach((card) => {
+          const tile = cardTile(card, "playable");
+          tile.addEventListener("click", () => {
+            socket.emit("chooseTrump", { playerId, suit: card.suit });
+          });
+          miniHand.appendChild(tile);
+        });
       }
     } else if (trumpOverlay) {
       trumpOverlay.classList.add("hidden");
@@ -881,12 +946,17 @@
       if (roundEndOverlay) roundEndOverlay.classList.remove("hidden");
       const r = state.roundResult;
       const won = r.winningTeam === myTeam;
+      const courtBanner = byId("courtBanner");
+      if (courtBanner) courtBanner.classList.toggle("hidden", !r.isCourt);
       setText("roundEndTitle", r.winningTeam ? (won ? "🎉 Your team won!" : "Your team lost") : "Round tied");
       const rt = r.tricksWon || { A: 0, B: 0 };
+      const nextNote = r.callerSucceeded
+        ? (r.isCourt ? "Trump passes to the caller's partner next round." : "The same player calls trump again next round.")
+        : "Trump passes to the next player.";
       setText(
         "roundEndDetail",
         `Tricks — Us: ${myTeam === "A" ? rt.A : rt.B}, Them: ${myTeam === "A" ? rt.B : rt.A}. ` +
-          `Trump caller ${r.callerSucceeded ? "made" : "failed"} the bid.`
+          `Trump caller ${r.callerSucceeded ? "made" : "failed"} the bid. ${nextNote}`
       );
     } else if (roundEndOverlay) {
       roundEndOverlay.classList.add("hidden");

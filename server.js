@@ -35,7 +35,7 @@ function randomCode() {
 
 // A turn auto-plays after this long, so one person putting their phone down
 // (or dropping off the wifi) never stalls the whole table.
-const TURN_SECONDS = 20;
+const TURN_SECONDS = 25;
 const BOT_NAMES = ["Bot Tiger", "Bot Fox", "Bot Panda", "Bot Lion", "Bot Falcon", "Bot Otter"];
 
 function broadcastState(room) {
