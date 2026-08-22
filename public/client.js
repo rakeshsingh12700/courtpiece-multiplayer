@@ -2,7 +2,9 @@
   const SUIT_SYMBOL = { S: "♠", H: "♥", D: "♦", C: "♣" };
   const SUIT_NAME = { S: "Spades", H: "Hearts", D: "Diamonds", C: "Clubs" };
   const RED_SUITS = { H: true, D: true };
-  const ASPECT = 244.64 / 169.075; // card height / card width
+  // Bridge-size deck (RevK, CC0) drawn with large top-only indices.
+  const CARD_VIEWBOX = "-106 -164.5 212 329";
+  const ASPECT = 329 / 212; // card height / card width
 
   // One distinct character per SEAT INDEX, so every phone shows the same
   // animal for the same person. Players who cannot read still know who is who.
@@ -13,9 +15,7 @@
   }
 
   function svgSymbolId(card) {
-    const suitName = { S: "spade", H: "heart", D: "diamond", C: "club" }[card.suit];
-    const rankPart = { A: "1", J: "jack", Q: "queen", K: "king" }[card.rank] || card.rank;
-    return `${suitName}_${rankPart}`;
+    return "c" + card.suit + card.rank;
   }
 
   function byId(id) {
@@ -46,7 +46,7 @@
 
   // load sprite sheet into hidden container so <use> works locally (avoids
   // cross-file <use> issues on mobile Safari)
-  fetch("assets/svg-cards.svg")
+  fetch("assets/cards.svg")
     .then((r) => r.text())
     .then((text) => {
       const container = byId("cardDefs");
@@ -62,7 +62,8 @@
 
   function cardEl(card) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 169.075 244.640");
+    svg.setAttribute("viewBox", CARD_VIEWBOX);
+    svg.setAttribute("preserveAspectRatio", "none");
     svg.classList.add("card");
     const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
     use.setAttribute("href", "#" + svgSymbolId(card));
@@ -70,27 +71,13 @@
     return svg;
   }
 
-  // A card tile = the card artwork plus a large-print corner index (rank over
-  // a small suit pip) drawn on the card's own white corner, so the artwork
-  // stays visible. It always fits inside the visible left strip of an
-  // overlapped card, so a neighbouring card can never cover it.
+  // The deck is drawn with an oversized top-left index of its own, so no badge
+  // is painted over the artwork any more.
   function cardTile(card, className) {
     const tile = document.createElement("div");
     tile.className = "card-tile" + (className ? " " + className : "");
     tile.dataset.cardId = card.id;
     tile.appendChild(cardEl(card));
-
-    const badge = document.createElement("div");
-    badge.className = "cbadge" + (RED_SUITS[card.suit] ? " red" : "");
-    const rank = document.createElement("span");
-    rank.className = "cb-r" + (String(card.rank).length > 1 ? " ten" : "");
-    rank.textContent = card.rank;
-    const suit = document.createElement("span");
-    suit.className = "cb-s";
-    suit.textContent = SUIT_SYMBOL[card.suit] || "";
-    badge.appendChild(rank);
-    badge.appendChild(suit);
-    tile.appendChild(badge);
     return tile;
   }
 

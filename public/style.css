@@ -370,38 +370,15 @@ body.dragging-card .drop-zone span { opacity: 0.9; color: var(--gold); }
 /* Solid white base + hard border so a card never blends into the green
    table, whatever state it is in. Opacity is never used to dim a card. */
 .card {
-  display: block; width: 100%; aspect-ratio: 169.075 / 244.64;
+  display: block; width: 100%; aspect-ratio: 212 / 329;
   background: #fff;
   border-radius: 7px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.6);
 }
 
-/* A normal playing-card corner index, just printed large - rank over a small
-   suit pip, tight in the top-left corner. No box, no border: it sits on the
-   card's own white corner so the artwork underneath stays fully visible. The
-   faint white backing only covers the deck's own tiny index. */
-.cbadge {
-  position: absolute; top: 2.5%; left: 4%;
-  display: flex; flex-direction: column; align-items: center;
-  padding: 1px 2px 2px;
-  border-radius: 4px;
-  background: rgba(255,255,255,0.94);
-  font-weight: 800;
-  line-height: 0.9;
-  color: #111;
-  pointer-events: none;
-  font-variant-numeric: tabular-nums;
-}
-.cbadge.red { color: #d40000; }
-.cbadge .cb-r { font-size: var(--idx, 20px); }
-.cbadge .cb-r.ten { font-size: calc(var(--idx, 20px) * 0.78); letter-spacing: -0.04em; }
-.cbadge .cb-s { font-size: calc(var(--idx, 20px) * 0.84); margin-top: 0.04em; }
-
 /* Unplayable cards are darkened with a filter so they stay fully opaque
    and completely readable - never faded into the table. */
 .hand .card-tile.illegal .card { filter: grayscale(1) brightness(0.66) contrast(1.05); }
-.hand .card-tile.illegal .cbadge { background: #d2d2d2; border-color: #3a3a3a; color: #333; }
-.hand .card-tile.illegal .cbadge.red { color: #7d2020; }
 
 .hand .card-tile.playable .card {
   outline: 3px solid var(--gold);
