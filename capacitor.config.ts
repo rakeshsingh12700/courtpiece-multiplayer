@@ -18,19 +18,17 @@ import type { CapacitorConfig } from '@capacitor/cli';
 //        server: { url: 'https://your-app.onrender.com', cleartext: false }
 //      This makes the native shell load the live site directly (same model
 //      Socket.IO already expects) instead of bundling a stale static copy.
-// TEMPORARY, again: Render's auto-deploy stopped actually redeploying on
-// push (confirmed - it was serving code from 2 commits back despite two
-// successful `git push`es), so it can't be trusted mid-session right now.
-// Pointed back at the tunnel, which is verified to match the exact latest
-// local code. Switch back to the Render URL once its deploy pipeline is
-// confirmed working again (check the Render dashboard for a failed/stuck
-// build - that's the next thing to investigate, just not mid-game).
+// Back on Render. Its deploy had genuinely fallen behind earlier tonight
+// (confirmed by md5 - serving code 2 commits stale), but re-checked and it
+// has since caught up and now matches HEAD exactly, including the most
+// recent push. This is the permanent choice - no dependency on this Mac or
+// any tunnel - so this is where the app should stay pointed by default.
 const config: CapacitorConfig = {
   appId: 'com.rakeshsingh.courtpiece',
   appName: 'Court Piece',
   webDir: 'public',
   server: {
-    url: 'https://author-masters-particles-verified.trycloudflare.com',
+    url: 'https://courtpiece.onrender.com',
     cleartext: false
   }
 };
