@@ -93,14 +93,22 @@ function currentTrickBest(room) {
 // past tricks, nothing resembling ML. This alone reads as "a person who
 // knows the basics" rather than "picks a random legal card", which is the
 // entire gap between a bot that's obviously a bot and one that isn't:
-//   - Leading: an ace of a plain (non-trump) suit is close to a free trick,
-//     so play it. Otherwise lead low from your longest suit - keeps
-//     strength in hand and probes for a suit an opponent is short in.
+//   - Leading: an ace of a plain (non-trump) suit is close to a free trick.
+//     Otherwise lead low from your longest suit - keeps strength in hand
+//     and probes for a suit an opponent is short in.
 //   - Following, partner already winning: no need to spend anything good -
 //     play your lowest legal card.
 //   - Following, an opponent winning: win as cheaply as possible if you
-//     can beat them at all; otherwise duck with your lowest card rather
-//     than wasting a good one on a trick you can't take.
+//     can beat them at all (never more card than the trick needs, which is
+//     what keeps this from burning trump it doesn't have to); otherwise
+//     duck with your lowest card rather than wasting a good one.
+//
+// On top of the "correct" move above, two deliberate probabilities make it
+// feel like an ordinary player instead of a solved calculator: a real
+// player doesn't cash an ace the instant they get the chance every single
+// time, and doesn't always take a trick just because they technically can -
+// sometimes they hold back. Both stay mild (70/30, 85/15) so the bot reads
+// as a good-but-human player, not an obviously bad one.
 function chooseSmartCard(room, seat) {
   const legal = room.legalMoves(seat);
   if (legal.length <= 1) return legal[0];
@@ -108,15 +116,16 @@ function chooseSmartCard(room, seat) {
   const byRankAsc = (a, b) => RANK_VALUE[a.rank] - RANK_VALUE[b.rank];
 
   if (!room.currentTrick.length) {
-    const aceLead = legal.find((c) => c.rank === "A" && c.suit !== trump);
-    if (aceLead) return aceLead;
-
     const bySuit = {};
     for (const c of legal) (bySuit[c.suit] = bySuit[c.suit] || []).push(c);
     const nonTrumpSuits = Object.keys(bySuit).filter((s) => s !== trump);
     const suits = nonTrumpSuits.length ? nonTrumpSuits : Object.keys(bySuit);
     suits.sort((a, b) => bySuit[b].length - bySuit[a].length);
-    return bySuit[suits[0]].slice().sort(byRankAsc)[0];
+    const lowFromLength = bySuit[suits[0]].slice().sort(byRankAsc)[0];
+
+    const aceLead = legal.find((c) => c.rank === "A" && c.suit !== trump);
+    if (aceLead) return Math.random() < 0.7 ? aceLead : lowFromLength;
+    return lowFromLength;
   }
 
   const best = currentTrickBest(room);
@@ -124,7 +133,8 @@ function chooseSmartCard(room, seat) {
   if (best && teamOf(best.seat) === teamOf(seat)) return sorted[0];
 
   const winners = best ? sorted.filter((c) => isHigher(c, best.card, room.leadSuit, room.trumpSuit)) : sorted;
-  return winners.length ? winners[0] : sorted[0];
+  if (!winners.length) return sorted[0];
+  return Math.random() < 0.85 ? winners[0] : sorted[0];
 }
 
 function autoPlayTurn(room) {
