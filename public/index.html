@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Court Piece</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="cardDefs" aria-hidden="true"></div>
+
+<!-- HOME / LOBBY -->
+<div id="screen-home" class="screen">
+  <div class="home-card">
+    <h1>🃏 Court Piece</h1>
+    <p class="subtitle">Single Rung</p>
+
+    <label class="field">
+      <span>Your name</span>
+      <input id="nameInput" maxlength="16" placeholder="e.g. Rakesh" autocomplete="off" />
+    </label>
+
+    <button id="createBtn" class="btn primary">Create Room</button>
+
+    <div class="divider">or join a room</div>
+
+    <label class="field">
+      <span>Room code</span>
+      <input id="codeInput" maxlength="4" placeholder="ABCD" autocomplete="off" style="text-transform:uppercase" />
+    </label>
+    <button id="joinBtn" class="btn secondary">Join Room</button>
+
+    <p id="homeError" class="error"></p>
+  </div>
+</div>
+
+<!-- LOBBY WAIT ROOM -->
+<div id="screen-waiting" class="screen hidden">
+  <div class="home-card">
+    <h1>Room <span id="roomCodeLabel"></span></h1>
+    <p class="subtitle">Share this code with your family</p>
+    <div id="seatList" class="seat-list"></div>
+    <button id="startBtn" class="btn primary" disabled>Waiting for 4 players…</button>
+  </div>
+</div>
+
+<!-- GAME TABLE -->
+<div id="screen-game" class="screen hidden">
+  <div class="table" id="tableEl">
+    <div class="hud" id="hudBar">
+      <div class="score">
+        <span class="team-a" id="scoreA">Us 0</span>
+        <span class="sep">·</span>
+        <span class="team-b" id="scoreB">Them 0</span>
+      </div>
+      <div class="trumpBadge" id="trumpBadge">Trump: —</div>
+      <div class="roomBadge" id="roomBadgeGame"></div>
+    </div>
+
+    <div class="top-row" id="topRow">
+      <div class="seat seat-top" id="seat-top">
+        <div class="avatar-wrap">
+          <svg class="timer-ring" viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="tr-track" cx="50" cy="50" r="45"></circle>
+            <circle class="tr-arc" cx="50" cy="50" r="45"></circle>
+          </svg>
+          <div class="avatar" id="avatar-top">🙂</div>
+        </div>
+        <div class="pname" id="name-top">—</div>
+      </div>
+    </div>
+
+    <div class="middle-row" id="middleRow">
+      <div class="seat seat-left" id="seat-left">
+        <div class="avatar-wrap">
+          <svg class="timer-ring" viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="tr-track" cx="50" cy="50" r="45"></circle>
+            <circle class="tr-arc" cx="50" cy="50" r="45"></circle>
+          </svg>
+          <div class="avatar" id="avatar-left">🙂</div>
+        </div>
+        <div class="pname" id="name-left">—</div>
+      </div>
+
+      <div class="trick-area" id="trickArea">
+        <div class="drop-zone" id="dropZone"><span>DROP<br />HERE</span></div>
+      </div>
+
+      <div class="seat seat-right" id="seat-right">
+        <div class="avatar-wrap">
+          <svg class="timer-ring" viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="tr-track" cx="50" cy="50" r="45"></circle>
+            <circle class="tr-arc" cx="50" cy="50" r="45"></circle>
+          </svg>
+          <div class="avatar" id="avatar-right">🙂</div>
+        </div>
+        <div class="pname" id="name-right">—</div>
+      </div>
+    </div>
+
+    <div class="banner-row" id="bannerRow">
+      <div class="seat seat-bottom" id="seat-bottom">
+        <div class="avatar-wrap">
+          <svg class="timer-ring" viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="tr-track" cx="50" cy="50" r="45"></circle>
+            <circle class="tr-arc" cx="50" cy="50" r="45"></circle>
+          </svg>
+          <div class="avatar" id="avatar-bottom">🙂</div>
+        </div>
+        <div class="pname you-label">YOU</div>
+      </div>
+
+      <div class="turn-banner" id="turnBanner">
+        <span class="banner-emoji" id="turnBannerEmoji"></span>
+        <span class="banner-text">
+          <span id="turnBannerText">Waiting…</span>
+          <span class="turn-banner-sub" id="turnBannerSub"></span>
+        </span>
+      </div>
+    </div>
+
+    <div class="hand-wrap" id="handWrap">
+      <div class="hand" id="handArea"></div>
+    </div>
+
+    <button id="reactionBtn" class="reaction-btn" aria-label="Send a reaction">😊</button>
+    <div id="reactionPanel" class="reaction-panel hidden">
+      <button class="emoji-opt">😂</button>
+      <button class="emoji-opt">😮</button>
+      <button class="emoji-opt">👏</button>
+      <button class="emoji-opt">🔥</button>
+      <button class="emoji-opt">❤️</button>
+      <button class="emoji-opt">😢</button>
+    </div>
+    <div id="reactionLayer"></div>
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <!-- Trump selection overlay -->
+  <div id="trumpOverlay" class="overlay hidden">
+    <div class="overlay-card">
+      <h2 id="trumpTitle">Choose Trump (Rung)</h2>
+      <div class="mini-hand" id="miniHand"></div>
+      <div class="suit-grid">
+        <button class="suit-btn" data-suit="S">♠<br />Spades</button>
+        <button class="suit-btn" data-suit="H">♥<br />Hearts</button>
+        <button class="suit-btn" data-suit="D">♦<br />Diamonds</button>
+        <button class="suit-btn" data-suit="C">♣<br />Clubs</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Round end overlay -->
+  <div id="roundEndOverlay" class="overlay hidden">
+    <div class="overlay-card">
+      <h2 id="roundEndTitle">Round Over</h2>
+      <p id="roundEndDetail"></p>
+      <button id="nextRoundBtn" class="btn primary">Next Round</button>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="client.js"></script>
+</body>
+</html>
