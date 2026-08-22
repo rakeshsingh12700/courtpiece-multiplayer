@@ -16,20 +16,20 @@
     <h1>🃏 Court Piece</h1>
     <p class="subtitle">Single Rung</p>
 
-    <label class="field">
-      <span>Your name</span>
-      <input id="nameInput" maxlength="16" placeholder="e.g. Rakesh" autocomplete="off" />
-    </label>
+    <button id="createBtn" class="btn primary big">▶︎ Start a New Game</button>
 
-    <button id="createBtn" class="btn primary">Create Room</button>
+    <div class="divider">or join a friend's game</div>
 
-    <div class="divider">or join a room</div>
+    <div class="join-row">
+      <input id="codeInput" maxlength="4" placeholder="CODE" autocomplete="off"
+             inputmode="latin" aria-label="Room code" />
+      <button id="joinBtn" class="btn secondary">Join</button>
+    </div>
 
-    <label class="field">
-      <span>Room code</span>
-      <input id="codeInput" maxlength="4" placeholder="ABCD" autocomplete="off" style="text-transform:uppercase" />
-    </label>
-    <button id="joinBtn" class="btn secondary">Join Room</button>
+    <details class="name-details">
+      <summary>Playing as <b id="nameEcho">…</b> — tap to change</summary>
+      <input id="nameInput" maxlength="16" placeholder="Your name (optional)" autocomplete="off" />
+    </details>
 
     <p id="homeError" class="error"></p>
   </div>
@@ -38,10 +38,15 @@
 <!-- LOBBY WAIT ROOM -->
 <div id="screen-waiting" class="screen hidden">
   <div class="home-card">
-    <h1>Room <span id="roomCodeLabel"></span></h1>
-    <p class="subtitle">Share this code with your family</p>
+    <p class="subtitle">Invite 3 players to this room</p>
+    <div class="code-hero" id="roomCodeLabel">····</div>
+
+    <button id="shareBtn" class="btn primary big">📤 Share Invite Link</button>
+    <p class="share-hint" id="shareHint">They just tap the link — no code, no name needed.</p>
+
     <div id="seatList" class="seat-list"></div>
     <button id="startBtn" class="btn primary" disabled>Waiting for 4 players…</button>
+    <p class="share-hint">Court Piece needs all 4 seats filled to start.</p>
   </div>
 </div>
 

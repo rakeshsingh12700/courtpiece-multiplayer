@@ -109,28 +109,70 @@
   const nameInput = byId("nameInput");
   const codeInput = byId("codeInput");
   const homeError = byId("homeError");
-  try {
-    const savedName = localStorage.getItem("cp_name");
-    if (savedName && nameInput) nameInput.value = savedName;
-  } catch (e) { /* ignore */ }
 
+  // Nobody should have to fill in a form to play. A name is picked for you and
+  // only shown so you can change it if you care.
+  const AUTO_NAMES = [
+    "Tiger", "Fox", "Panda", "Lion", "Falcon", "Otter", "Heron", "Bison",
+    "Koel", "Mynah", "Peacock", "Sparrow",
+  ];
+  function autoName() {
+    return AUTO_NAMES[Math.floor(Math.random() * AUTO_NAMES.length)] + " " + (1 + Math.floor(Math.random() * 99));
+  }
+  function storedName() {
+    try { return localStorage.getItem("cp_name") || ""; } catch (e) { return ""; }
+  }
   function rememberName(name) {
     try { localStorage.setItem("cp_name", name); } catch (e) { /* ignore */ }
   }
+  // Whatever is typed, else whatever was used last time, else a fresh auto name.
+  function resolveName() {
+    const typed = ((nameInput && nameInput.value) || "").trim();
+    const name = typed || storedName() || autoName();
+    rememberName(name);
+    setText("nameEcho", name);
+    return name;
+  }
+
+  if (nameInput) {
+    const saved = storedName();
+    if (saved) nameInput.value = saved;
+    nameInput.addEventListener("input", () => {
+      const v = nameInput.value.trim();
+      setText("nameEcho", v || storedName() || "…");
+    });
+  }
+  setText("nameEcho", storedName() || autoName());
 
   byId("createBtn").addEventListener("click", () => {
-    const name = (nameInput.value || "").trim() || "Player";
-    rememberName(name);
-    socket.emit("createRoom", { playerId, name }, handleJoinResult);
+    socket.emit("createRoom", { playerId, name: resolveName() }, handleJoinResult);
   });
 
+  function doJoin(code) {
+    if (!code) {
+      homeError.textContent = "Enter the 4-letter code your friend sent you";
+      if (codeInput) codeInput.focus();
+      return;
+    }
+    homeError.textContent = "Joining…";
+    socket.emit("joinRoom", { playerId, name: resolveName(), code }, handleJoinResult);
+  }
+
   byId("joinBtn").addEventListener("click", () => {
-    const name = (nameInput.value || "").trim() || "Player";
-    const code = (codeInput.value || "").trim().toUpperCase();
-    if (!code) { homeError.textContent = "Enter a room code"; return; }
-    rememberName(name);
-    socket.emit("joinRoom", { playerId, name, code }, handleJoinResult);
+    doJoin(((codeInput && codeInput.value) || "").trim().toUpperCase());
   });
+  if (codeInput) {
+    // Typing the 4th letter is intent enough - no need to hunt for the button.
+    codeInput.addEventListener("input", () => {
+      codeInput.value = codeInput.value.toUpperCase();
+      if (codeInput.value.trim().length === 4) doJoin(codeInput.value.trim());
+    });
+    codeInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doJoin(codeInput.value.trim().toUpperCase());
+    });
+  }
+
+  let currentCode = null;
 
   function handleJoinResult(res) {
     if (!res || !res.ok) {
@@ -138,18 +180,54 @@
       return;
     }
     homeError.textContent = "";
+    currentCode = res.code;
     setText("roomCodeLabel", res.code);
     setText("roomBadgeGame", "Room " + res.code);
     history.replaceState(null, "", "?room=" + res.code);
+  }
+
+  // ---------- Share ----------
+  function inviteUrl() {
+    return location.origin + "/?room=" + (currentCode || "");
+  }
+  const shareBtn = byId("shareBtn");
+  if (shareBtn) {
+    shareBtn.addEventListener("click", async () => {
+      const url = inviteUrl();
+      const text = "Join my Court Piece game";
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: "Court Piece", text, url });
+          return;
+        }
+      } catch (e) {
+        if (e && e.name === "AbortError") return; // they dismissed the sheet
+      }
+      try {
+        await navigator.clipboard.writeText(url);
+        setText("shareHint", "Link copied — paste it to your family.");
+      } catch (e) {
+        setText("shareHint", url);
+      }
+    });
   }
 
   byId("startBtn").addEventListener("click", () => {
     socket.emit("startGame", { playerId });
   });
 
+  // Opening a shared invite link drops you straight into the room - no code to
+  // type, no name to pick.
   const urlParams = new URLSearchParams(location.search);
-  const urlRoom = urlParams.get("room");
-  if (urlRoom && codeInput) codeInput.value = urlRoom.toUpperCase();
+  const urlRoom = (urlParams.get("room") || "").trim().toUpperCase();
+  if (urlRoom) {
+    if (codeInput) codeInput.value = urlRoom;
+    socket.on("connect", function joinFromLink() {
+      socket.off("connect", joinFromLink);
+      doJoin(urlRoom);
+    });
+    if (socket.connected) doJoin(urlRoom);
+  }
 
   // ---------- Overlays ----------
   const trumpOverlay = byId("trumpOverlay");
@@ -328,10 +406,14 @@
     const seatEl = byId("seat-left");
     const seatW = (seatEl && seatEl.offsetWidth) || 76;
     const midW = Math.max(110, vw - 2 * seatW - 14);
-    const crossV = squat ? 1.68 : 2.1;
-    const crossH = squat ? 2.8 : 2.24;
+    // Cross extents with the side cards rotated 90deg. Upright cards reach
+    // 0.57H either side of centre plus half a card, so the cross is ~2.14 card
+    // heights tall; the sideways cards reach 0.83W plus half a card HEIGHT
+    // each side, so it is ~3.1 card widths across.
+    const crossV = 2.14;
+    const crossH = 3.1;
     let tW = (middleH - 8) / crossV / ASPECT;
-    tW = Math.min(tW, midW / crossH, 104);
+    tW = Math.min(tW, midW / crossH, 132);
     tW = Math.max(tW, 30);
 
     // Large-print corner index: sized off the card, but never wider than the
@@ -522,6 +604,7 @@
   window.addEventListener("orientationchange", scheduleRelayout);
 
   function renderWaiting(state) {
+    if (state.code) currentCode = state.code; // keeps the share link right
     setText("roomCodeLabel", state.code);
     const list = byId("seatList");
     if (list) {
