@@ -680,8 +680,31 @@
     });
   }
 
+  // ---------- Connection watchdog ----------
+  // A socket can go "zombie" - reporting connected=true while no longer
+  // actually delivering data - a known failure mode that Socket.IO's own
+  // reconnect logic doesn't always catch, since from its point of view
+  // nothing looks wrong. Rather than debug that failure mode blind on a
+  // remote device, just detect staleness directly and force a full reload:
+  // during active play the server guarantees a state update at least every
+  // ~27s (turn timeout + trick pause) even if nobody touches their phone, so
+  // materially longer silence than that means the connection is dead, not
+  // that someone is thinking. A hard reload re-establishes everything from
+  // scratch - the same fix as manually closing and reopening the app, just
+  // automatic.
+  let lastStateAt = Date.now();
+  setInterval(() => {
+    const st = lastState;
+    const expectingUpdates = st && (st.phase === "playing" || st.phase === "trumpSelect");
+    const silentFor = Date.now() - lastStateAt;
+    const zombie = expectingUpdates && silentFor > 32000;
+    const deadSocket = !socket.connected && silentFor > 10000 && document.visibilityState === "visible";
+    if (zombie || deadSocket) location.reload();
+  }, 4000);
+
   // ---------- Main state render ----------
   socket.on("state", (state) => {
+    lastStateAt = Date.now();
     lastState = state;
     try {
       if (state.phase === "lobby") {

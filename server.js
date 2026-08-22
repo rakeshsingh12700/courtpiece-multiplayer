@@ -21,6 +21,10 @@ app.use(
 // Hosting platforms ping this to know the instance is up.
 app.get("/healthz", (req, res) => res.json({ ok: true, rooms: rooms.size }));
 
+// Temporary local-only route so the debug APK can be downloaded straight
+// from a phone browser (dist-apk/ is gitignored - never deployed to Render).
+app.use("/download", express.static(path.join(__dirname, "dist-apk")));
+
 const rooms = new Map(); // code -> Room
 const playerRooms = new Map(); // playerId -> code
 
