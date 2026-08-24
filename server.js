@@ -6,7 +6,17 @@ const { Room, isHigher, teamOf, RANK_VALUE } = require("./game");
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer);
+// No origin restriction: this is a public, room-code-based game with no
+// cookies or per-origin auth to protect, so there's nothing CORS is
+// actually guarding here - and Socket.IO defaults to rejecting cross-origin
+// requests outright, which silently breaks its own HTTP-polling transport
+// (a plain XMLHttpRequest, fully subject to CORS) for any client not
+// served from this exact origin. That forced the Flutter app onto
+// WebSocket-only, which has no CORS requirement but is also less tolerant
+// of real mobile-network hiccups than polling-with-upgrade is - a
+// WebSocket a flaky connection drops outright is often a request plain
+// polling would have simply retried.
+const io = new Server(httpServer, { cors: { origin: true } });
 
 // No-cache while we are tuning the UI mid-game, so a plain refresh on
 // everyone's phone always picks up the latest build.
